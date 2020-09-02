@@ -1,0 +1,846 @@
+---
+title: <center style="font-size:30px;font-style:normal;color:black;">Additional Materials 04 :</center>
+subtitle: <center style="font-size:30px;font-style:normal;color:#0E0E7D;">Comparing Individual Identity Content Between Ranges</center>
+ &nbsp;
+author: |
+  <center style="font-style:normal;">
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://smith-vidaurre.com/">Grace Smith-Vidaurre</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1*</span></sup>, 
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Valeria Perez</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup>,
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Timothy F. Wright</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup></center>
+  &nbsp;
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">1</span></sup>Department of Biology, New Mexico State University</center>
+  <br />
+  <center style="font-size:18px;"><sup style="font-size:12px;">*</sup>Corresponding author (gsvidaurre@gmail.com)</center>
+  &nbsp;
+date: <center style="font-size:22px;font-style:normal;>`r format(Sys.time(), '%d %B %Y')`</center>
+  <br />
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+---
+
+<style type="text/css">
+
+a:hover {
+  color: #23527c !important;
+}
+
+h1.title {
+  font-size: 32px;
+  color: black;
+  font-weight: normal;
+}
+
+h1 {
+   color: black;
+   font-size: 26px;
+   font-weight: normal;
+}
+
+h2 {
+   color: black;
+   font-size: 24px;
+   font-weight: bold;
+}
+
+h3 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+h4 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+body{ /* Normal */
+      font-size: 18px;
+  }
+code.r{ /* Code block */
+    font-size: 18px;
+}
+</style>
+
+```{r setup, eval = TRUE, echo = FALSE}
+
+knitr::opts_knit$set(root.dir = "/home/owner/Desktop/GitHub_repos/vocal-learning-invasion")
+
+```
+
+Individual identity content was compared in contact calls of repeatedly sampled individuals per range. We used Beecher's statistic as a metric of individual identity content, and also used this statistic to calculate the possible number of unique individual signatures given from the level of identity content per range<a href='#References'><sup>[1]</sup></a>. The dataset of repeatedly sampled individuals per range was used here, and we validated the individuals used for this comparison between ranges.
+
+The prefix "AM" stands for "Additional Material", used to indicate figures included here that are not present in the main figures or supplementary material, but are still valuable for reproducibility.
+
+```{r echo = TRUE, eval = TRUE, message = FALSE}
+
+rm(list = ls())
+
+X <- c("tidyverse", "pbapply", "dplyr", "data.table", "parallel", "scales", "ggplot2", "IDmeasurer", "knitr", "utils", "egg", "gridExtra", "grid", "ggplotify", "rgeos", "rgdal", "facetscales", "Rmisc", "caret")
+
+invisible(lapply(X, library, character.only = TRUE))
+
+path <- "/media/owner/MYIOPSITTA/R/VocalLearning_PostInvasion/Data"
+gpath <- "/media/owner/MYIOPSITTA/R/VocalLearning_PostInvasion/Graphics"
+seed <- 401
+cores <- parallel::detectCores() - 2
+
+```
+
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est <- readRDS(file.path(path, "nat_inv_indiv_site_EST.RDS"))
+# glimpse(nat_inv_est)
+
+```
+
+# Choosing individuals for comparison
+
+Get individual scale calls across ranges.
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale <- nat_inv_est %>%
+filter(social_scale == "Individual") %>%
+  droplevels()
+# glimpse(indiv_scale)
+
+```
+
+Determining how to calculate Beecher's statistic per range.
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale %>%
+  group_by(range) %>%
+  dplyr::summarise(n_indivs = n_distinct(Bird_ID))
+
+```
+
+How many individuals were sampled over time in the invasive range? Only a single bird in 2004. Two in 2011, 6 in 2019. Two site-years in 2019 have two individuals sampled each. All other site-years have a single bird. One of the 2019 repeatedly sampled indviduals is the El Paso loner at ASCA, and will not be included in subsequent analysis.
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale %>%
+  filter(range == "Invasive") %>%
+  group_by(range, year) %>%
+  dplyr::summarise(n_indivs = n_distinct(Bird_ID))
+
+```
+
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale %>%
+  filter(range == "Invasive") %>%
+  group_by(range, invasive_city, site_year) %>%
+  dplyr::summarise(n_indivs = n_distinct(Bird_ID))
+
+```
+
+How many individuals for native range sites?
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale %>%
+  filter(range == "Native") %>%
+  group_by(site) %>%
+  dplyr::summarise(n_birds = n_distinct(Bird_ID))
+
+```
+
+How many individuals for Austin 2019?
+```{r echo = TRUE, eval = TRUE}
+
+indiv_scale %>%
+  filter(range == "Invasive") %>%
+  filter(invasive_city == "Austin" & year == 2019) %>%
+  dplyr::summarise(n_birds = n_distinct(Bird_ID))
+
+```
+
+Pairwise distances between sites at which we repeatedly sampled individuals in each range.
+
+Native range, using spatial projection for Uruguay.
+```{r echo = TRUE, eval = TRUE}
+
+# Access EPSG codes to reproject in meters
+# Used EPSG 5383 for Uruguay
+epsg <- rgdal::make_EPSG()
+# str(epsg)
+
+# epsg[grep("^5383$", epsg$code), ]
+
+# Get geographic coordinates for native range sites at which we repeatedly sampled individuals
+# Note that there were two clusters of nests at which we recorded at site 1145, considered a single site because we frequently observed birds from these clusters of nests staging and interacting together
+coords_df <- nat_inv_est %>%
+  filter(range == "Native" & social_scale == "Individual") %>%
+  dplyr::select(site, lat, lon) %>%
+  distinct()
+
+# coords_df
+
+# Convert to Spatial Points object
+mat <- as.matrix(data.frame(lon = coords_df$lon, lat = coords_df$lat))
+sp_pts <- SpatialPoints(mat, proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+
+# Reproject
+sp_pts <- sp::spTransform(sp_pts, CRSobj = CRS(epsg$prj4[grep("^5383$", epsg$code)]))
+# bbox(sp_pts)
+# proj4string(sp_pts)
+
+# Calculate pairwise distances among sites (meters)
+nat_geo_dists <- rgeos::gDistance(sp_pts, byid = TRUE)
+dimnames(nat_geo_dists) <- list(coords_df$site, coords_df$site)
+
+# Shown in km
+nat_geo_dists/1000
+
+```
+
+The closest geographic distance between unique sites at which we obtained calls from repeatedly sampled individuals was 11km in the native range, between EMBR and CHAC. Note that nest clusters at site 1145 were considered as a single nest site.
+
+Invasive range, using spatial projection for U.S.
+```{r echo = TRUE, eval = TRUE}
+
+# Access EPSG codes to reproject in meters
+# Used EPSG 2163 (U.S. National Atlas Equal Area projection)
+epsg <- rgdal::make_EPSG()
+# str(epsg)
+
+# epsg[grep("^2163$", epsg$code), ]
+
+coords_df <- nat_inv_est %>%
+  filter(range == "Invasive" & social_scale == "Individual") %>%
+  dplyr::select(site, lat, lon) %>%
+  distinct()
+
+# coords_df
+
+mat <- as.matrix(data.frame(lon = coords_df$lon, lat = coords_df$lat))
+sp_pts <- SpatialPoints(mat, proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+
+sp_pts <- sp::spTransform(sp_pts, CRSobj = CRS(epsg$prj4[grep("^2163$", epsg$code)]))
+# bbox(sp_pts)
+# proj4string(sp_pts)
+
+# Calculate pairwise distances among sites (meters)
+inv_geo_dists <- rgeos::gDistance(sp_pts, byid = TRUE)
+dimnames(inv_geo_dists) <- list(coords_df$site, coords_df$site)
+
+# Shown in km
+inv_geo_dists/1000
+
+range(inv_geo_dists/1000)
+
+```
+
+The geographic distances among sites with repeatedly sampled individuals were much greater for the invasive range than the native range. 
+
+# Validation analysis
+
+Previous work in this system indicates that parakeets separated by greater geographic distances are more likely to overlap in acoustic space, probably because they are less likely to interact within social groups when separated by greater distances<a href='#References'><sup>[2]</sup></a>. Given this, we felt it was important to compare individual identity information over geographic areas that were as similar as possible between the native and invasive ranges, and to use the same number of individuals per range.
+
+The most similar geographic areas represented in the repeatedly sampled individual datasets per range, which also provided equal numbers of individuals per range, was site 1145 with 5 repeatedly sampled individuals for the native range, and 5 individuals recorded at 3 sites in Austin 2019.
+
+The Austin 2019 individuals were recorded at sites 3 - 7km apart (sites ELEM, INTR, SOCC). These geographic distances were all smaller than the minimum distance between sites sampled in the native range (11.12km). While this comparison between ranges fits both requirements for restricted geographic area and equal numbers of individuals, a potential problem is that the native range individuals represented a single site, while the invasive range individuals represented 3 sites.  
+
+We performed a validation analysis to assess whether this comparison between ranges was fair for calculating Beecher's statistic. As previous work indicates that individuals do not converge on shared calls within sites, and are more likely to overlap in acoustic space over increasing geographic distance, we wanted to know whether the amount of overlap in acoustic space for repeatedly sampled individuals was similar between the 5 invasive range individuals recorded at 3 sites compared to the 5 native range individuals recorded at a single site. We also compared overlap among native range individuals recorded at the 3 native range sites separated by greater geographic distances than the invasive range sites.
+
+Dnamic time warping (DTW) acoustic distance of second harmonic frequency contours within and among individuals was compared via a bootstrapping analysis. We asked whether individuals recorded at the 3 native range sites overlapped more in second harmonic acoustic space than individuals recorded at the 3 invasive range sites in Austin 2019 and individuals recorded at the single native range site.
+
+Performed dynamic time warping (DTW) on second harmonic frequency contours and removed 5 timepoints on either end.
+```{r, echo = TRUE, eval = TRUE}
+
+# The EST with the manually tailored 2nd harmonic traces
+freq_mod_est <- readRDS(file.path(path, "freq_mod_est_m2h.RDS"))
+# glimpse(freq_mod_est)
+
+freq_mod_est_indiv <- freq_mod_est %>%
+  filter(question == "indiv_scale") %>%
+  droplevels() %>%
+  dplyr::select(names(.)[grep("sound.files|range|Bird_ID|year|site|invasive_city|ffreq", names(.))])
+# glimpse(freq_mod_est_indiv)
+
+```
+
+```{r, echo = TRUE, eval = FALSE}
+
+# Get the frequency traces
+tmp <- freq_mod_est_indiv[, grep("ffreq", names(freq_mod_est_indiv))]
+
+# Drop 5 points on either end of frequency traces
+tmp <- tmp[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(tmp))]
+glimpse(tmp)
+
+# Returns distances by default
+freq_mod_DTW <- dtw::dtwDist(tmp, tmp, window.type = "none", open.end = FALSE, path = path)
+str(freq_mod_DTW)
+
+saveRDS(freq_mod_DTW, file.path(path, "freq_mod_DTW.RDS"))
+
+```
+
+Subset the DTW distance matrix to retains individuals for bootstrapping.
+```{r echo = TRUE, eval = TRUE}
+
+freq_mod_DTW <- readRDS(file.path(path, "freq_mod_DTW.RDS"))
+
+dimnames(freq_mod_DTW) <- list(as.character(freq_mod_est_indiv$sound.files), as.character(freq_mod_est_indiv$sound.files))
+
+# Subset the matrix by all native range individuals, and the invasive range Austin 2019 individuals
+freq_mod_est_indiv2 <- freq_mod_est_indiv %>%
+    filter(range == "Native" | invasive_city == "Austin" & year == "2019") %>%
+  droplevels()
+
+indivs <- freq_mod_est_indiv2 %>%
+    pull(Bird_ID) %>%
+    unique()
+indivs
+
+calls <- freq_mod_est_indiv2 %>%
+    pull(sound.files)
+# calls
+
+freq_mod_DTW_tmp <- freq_mod_DTW[grep(paste(paste("^", calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW)[[1]]), grep(paste(paste("^", calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW)[[2]])]
+str(freq_mod_DTW_tmp)
+
+```
+
+We bootstrapped calls per bird, randomly selecting 4 calls per iteration, or the total per individual if only 4 calls were recorded. For the comparison of individuals over 3 native range sites, we also randomly sampled 5 individuals out of the 8 total in each iteration. Per iteration, we found the mean DTW difference within versus among individuals recorded over the 3 sites in each range.
+
+Here, performed bootstrapping for the 8 native range individuals recorded at 3 sites, and the 5 invasive range individuals recorded at 3 sites.
+```{r echo = TRUE, eval = FALSE}
+
+ranges <- c("Native", "Invasive")
+iter <- 1000
+
+bs_sim <- rbindlist(pblapply(1:iter, function(i){
+  
+  # Randomly sample 5 individuals for the native range across the 3 sites
+  nat_indivs <- freq_mod_est_indiv2 %>%
+    filter(range == "Native") %>%
+    droplevels() %>%
+    pull(Bird_ID) %>%
+    unique() %>%
+    sample(5, replace = FALSE)
+  
+  # Randomly sample 4 calls per individual per range
+  # Take the total calls if 4 or less were recorded
+  nat_calls <- freq_mod_est_indiv2 %>%
+    filter(Bird_ID %in% nat_indivs) %>%
+    droplevels() %>%
+    group_by(Bird_ID) %>%
+    nest() %>%
+    ungroup() %>%
+    inner_join(
+      freq_mod_est_indiv2 %>%
+        filter(range == "Native") %>%
+        group_by(Bird_ID) %>%
+        dplyr::summarise(
+          n_calls = length(sound.files)
+        ) %>%
+        dplyr::mutate(
+          rc = ifelse(n_calls > 4, 4, n_calls)
+        ),
+        by = "Bird_ID"
+      ) %>%
+    dplyr::mutate(
+      rs = purrr::map2(data, rc, sample_n, replace = FALSE)
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(rs) %>%
+    dplyr::select(sound.files, site, Bird_ID)
+  
+  inv_calls <- freq_mod_est_indiv2 %>%
+    filter(range == "Invasive") %>%
+    droplevels() %>%
+    group_by(Bird_ID) %>%
+    nest() %>%
+    ungroup() %>%
+    inner_join(
+      freq_mod_est_indiv2 %>%
+        filter(range == "Invasive") %>%
+        group_by(Bird_ID) %>%
+        dplyr::summarise(
+          n_calls = length(sound.files)
+        ) %>%
+        dplyr::mutate(
+          rc = ifelse(n_calls > 4, 4, n_calls)
+        ),
+        by = "Bird_ID"
+      ) %>%
+    dplyr::mutate(
+      rs = purrr::map2(data, rc, sample_n, replace = FALSE)
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(rs) %>%
+    dplyr::select(sound.files, site, Bird_ID)
+  
+  dfs <- list(nat_calls, inv_calls)
+  
+  # Calculate the difference in DTW second harmonic similarity within and among individuals per range
+  indivs <- list(
+    nat_indivs,
+    inv_calls %>%
+      pull(Bird_ID) %>%
+      unique()
+  )
+  
+  res_df2 <- rbindlist(lapply(1:length(ranges), function(r){
+    
+    res_df <- rbindlist(lapply(1:length(indivs[[r]]), function(s){
+      
+      # Get the site for the given individual
+      st <- dfs[[r]] %>%
+        filter(Bird_ID == indivs[[r]][s]) %>%
+        pull(site) %>%
+        unique()
+      
+      # Get calls for the given individual
+      in_calls <- dfs[[r]] %>%
+        filter(Bird_ID == indivs[[r]][s]) %>%
+        pull(sound.files)
+    
+      # Get calls for all other individuals (same or different sites)
+      amng_calls <- dfs[[r]] %>%
+        filter(Bird_ID != indivs[[r]][s]) %>%
+        pull(sound.files)
+      
+      # Subset the DTW matrix by calls for the given individual
+      tmp_mat <- freq_mod_DTW_tmp[grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[1]]), grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[2]])]
+      
+      w <- tmp_mat[lower.tri(tmp_mat, diag = FALSE)]
+      
+      # Get similarity values for comparisons between calls for this individual to calls for all other individuals
+      a <- as.vector(freq_mod_DTW_tmp[-grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[1]]), grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[2]])])
+      
+      # Return the difference in mean DTW distance within versus among sites
+      res <- data.frame(range = ranges[r], site = st, indiv = indivs[[r]][s], DTW_diff = (mean(a) - mean(w)))
+      
+      return(res)
+      
+    }))
+    
+    return(res_df)
+  
+  }))
+  
+  return(res_df2)
+  
+}))
+
+glimpse(bs_sim)
+
+saveRDS(bs_sim, file.path(path, "m2H_bootstrap_DTW_3sites.RDS"))
+
+```
+
+We also performed bootstrapping for the 5 repeatedly sampled individuals at the single native range site (1145). This allowed us to ask how DTW distance within versus individuals at this single site compared to the differences in DTW distances for individuals at all 3 native and invasive range sites obtained above.
+```{r echo = TRUE, eval = FALSE}
+
+bs_sim_1145 <- rbindlist(pblapply(1:iter, function(i){
+  
+  # Randomly sample 4 calls or the total per individual for 1145
+  nat_calls <- freq_mod_est_indiv2 %>%
+    filter(range == "Native" & site == "1145") %>%
+    droplevels() %>%
+    group_by(Bird_ID) %>%
+    nest() %>%
+    ungroup() %>%
+    inner_join(
+      freq_mod_est_indiv2 %>%
+        filter(range == "Native" & site == "1145") %>%
+        group_by(Bird_ID) %>%
+        dplyr::summarise(
+          n_calls = length(sound.files)
+        ) %>%
+        dplyr::mutate(
+          rc = ifelse(n_calls > 4, 4, n_calls)
+        ),
+        by = "Bird_ID"
+      ) %>%
+    dplyr::mutate(
+      rs = purrr::map2(data, rc, sample_n, replace = FALSE)
+    ) %>%
+    dplyr::select(-data) %>%
+    unnest(rs) %>%
+    dplyr::select(sound.files, Bird_ID)
+  
+  # Then calculate the difference in DTW second harmonic similarity within and among individuals at 1145
+  indivs <- nat_calls %>%
+    pull(Bird_ID) %>%
+    unique()
+    
+  res_df <- rbindlist(lapply(1:length(indivs), function(s){
+      
+      in_calls <- nat_calls %>%
+        filter(Bird_ID == indivs[s]) %>%
+        pull(sound.files)
+    
+      amng_calls <- nat_calls %>%
+        filter(Bird_ID != indivs[s]) %>%
+        pull(sound.files)
+      
+      tmp_mat <- freq_mod_DTW_tmp[grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[1]]), grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[2]])]
+      
+      w <- tmp_mat[lower.tri(tmp_mat, diag = FALSE)]
+      
+      a <- as.vector(freq_mod_DTW_tmp[-grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[1]]), grep(paste(paste("^", in_calls, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW_tmp)[[2]])])
+      
+      # Get the difference in mean DTW distance within and among individuals 
+      return(data.frame(site = "1145", indiv = indivs[s], DTW_diff = (mean(a) - mean(w))))
+      
+    }))
+    
+    return(res_df)
+  
+}))
+
+glimpse(bs_sim_1145)
+
+saveRDS(bs_sim_1145, file.path(path, "m2H_bootstrap_DTW_1145.RDS"))
+
+```
+
+Combine bootstrapping results.
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+bs_sim <- readRDS(file.path(path, "m2H_bootstrap_DTW_3sites.RDS"))
+# glimpse(bs_sim)
+
+bs_sim_1145 <- readRDS(file.path(path, "m2H_bootstrap_DTW_1145.RDS"))
+# glimpse(bs_sim_1145)
+
+bs_all <- bs_sim %>%
+  dplyr::mutate(
+    type = "Three sites"
+  ) %>%
+  bind_rows(
+    bs_sim_1145 %>%
+      dplyr::mutate(
+        range = "Native",
+        type = "Single site"
+      ) %>%
+      dplyr::select(c(range, site, indiv, DTW_diff, type))
+    ) %>%
+  dplyr::mutate(
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  group_by(range, type) %>%
+  dplyr::summarise(
+    mean = mean(DTW_diff),
+    upper_CI = CI(DTW_diff, 0.95)[["upper"]],
+    lower_CI = CI(DTW_diff, 0.95)[["lower"]]
+  )
+
+bs_all %>%
+  dplyr::mutate(
+    mean = round(mean, 2),
+    upper_CI = round(upper_CI, 2),
+    lower_CI = round(lower_CI, 2)
+  ) %>%
+  kable()
+
+```
+
+## Supplementary Figure 2
+
+```{r echo = TRUE, eval = TRUE}
+
+fills <- scales::alpha(c("navy", "orange"), 0.85)
+
+bs_all %>%
+  ggplot(aes(x = type, y = mean)) +
+  geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI, color = range), size = 1.5, width = 0.25) +
+  geom_point(aes(fill = range), shape = 21, color = "black", stroke = 0.25, size = 6) +
+  facet_wrap(~ range) +
+  scale_fill_manual(values = fills) +
+  scale_color_manual(values = fills) +
+  ylab("Mean DTW difference and 95% CI") + xlab("") +
+  theme_bw() +
+  guides(fill = FALSE, color = guide_legend(title = "")) +
+  theme(
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    strip.text = element_text(size = 14, margin = margin(1, 0, 1, 0, "lines")),
+    legend.position = "top",
+    legend.text = element_text(size = 14),
+    panel.grid.major = element_line(size = 0.15),
+    panel.grid.minor = element_blank()
+  )
+
+# ggsave(file.path(gpath, "SupplementaryFigure2_DTWdifference_Validation.jpeg"), units = "in", width = 5, height = 4, dpi = 300)
+
+```
+
+This validation analysis confirms that the 5 individuals at a single site in the native range and the 5 individuals at 3 sites in the invasive range represent similar levels of overdispersion in acoustic space. We proceeded with Beecher's statistic calculations for these individuals per range.
+
+# Beecher's statistic
+
+Calculated Beecher's statistic using the IDmeasurer package on the cepstral coefficients (all calls per individual) and manually traced frequency curves of the second harmonic (5 or 4 calls per individual). Beecher's statistic was calculated by performing principal components analysis (PCA) on each acoustic measurement, and using the principal components significantly related to individual identity.
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+cep_coeff <- read.csv(file.path(path, "Mel_freq_cepstral_coefficients.csv"))
+# glimpse(cep_coeff)
+
+# Add back metadata
+cep_coeff <- cep_coeff %>%
+  inner_join(
+    nat_inv_est %>%
+      filter(social_scale == "Individual") %>%
+      dplyr::select(sound.files, range, year, site, invasive_city, Bird_ID),
+    by = "sound.files"
+  ) %>%
+  # Make sure the selec column is not numeric so it isn't included in the PCA
+  dplyr::mutate(
+    selec = as.character(selec)
+  )
+# glimpse(cep_coeff)
+
+# The EST with the manually tailored 2nd harmonic traces
+freq_mod_est <- readRDS(file.path(path, "freq_mod_est_m2h.RDS"))
+# glimpse(freq_mod_est)
+
+# Subset by the 84 calls selected for the individual scale
+freq_mod_est_indiv <- freq_mod_est %>%
+  filter(question == "indiv_scale") %>%
+  droplevels() %>%
+  dplyr::select(names(.)[grep("sound.files|range|Bird_ID|year|site|invasive_city|ffreq", names(.))])
+# glimpse(freq_mod_est_indiv)
+
+n_tot <- 100 # the number of timepoints per frequency trace
+n_rem <- 5 # remove 5 points at the start and end of each call, for 90 frequency measurements total across each call
+# the number of timepoints per frequency trace, minus 5 on either end
+n <- n_tot - (n_rem*2)
+
+# Remove 5 points on either end of the frequency traces
+sec_harm <- freq_mod_est_indiv[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(freq_mod_est_indiv))]
+# glimpse(sec_harm)
+# names(sec_harm)
+
+# Get Beecher's statistic (HS) by iterating over ranges and measurements
+# Also calculate the number of possible unique individual signatures
+ranges <- c("Native", "Invasive")
+measurements <- c("MFCC", "Frequency\n contours")
+mlist <- list(cep_coeff, sec_harm)
+
+# r <- 2
+# m <- 1
+HS_df <- rbindlist(pblapply(1:length(ranges), function(r){
+  
+  HS_df_tmp <- rbindlist(lapply(1:length(measurements), function(m){
+    
+    # Get the given measurements
+    meas <- mlist[[m]]
+    
+    # Subset by the given range
+    if(grepl("Nat", ranges[r])){
+        meas_tmp <- meas %>%
+        filter(range == "Native" & site == "1145") %>%
+        droplevels()
+    } else if(grepl("Inv", ranges[r])){
+      meas_tmp <- meas %>%
+        filter(range == "Invasive" & invasive_city == "Austin" & year == 2019) %>%
+        droplevels()
+    }
+    
+    # Get numeric columns only
+    meas_tmp2 <- meas_tmp[, sapply(meas_tmp, is.numeric)]
+    # names(meas_tmp2)
+
+    # Perform the PCA
+    pca_res <- calcPCA(meas_tmp2)
+    # str(pca_res)
+    
+    # Calculate Beecher's statistic
+    HS <- calcHS(pca_res, sumHS = TRUE)
+    # str(HS)
+    
+    # Get HS using PCs significantly related to individual identity
+    HS <- HS[["HS for significant vars"]]
+    # HS
+    
+    indivs <- meas_tmp %>%
+      pull(Bird_ID) %>%
+      unique()
+    # indivs
+    
+    HS_df <- data.frame(range = ranges[r], measurement = measurements[m], num_calls = nrow(meas_tmp), HS = round(HS, 2), N_sigs = round(HS^2, 2))
+    
+    return(HS_df)
+    
+  }))
+  
+  return(HS_df_tmp)
+  
+}))
+
+HS_df %>%
+  dplyr::mutate(
+    measurement = gsub("\n", "", measurement)
+  ) %>%
+  arrange(measurement) %>%
+  kable()
+
+```
+
+## Figure 2C
+
+Beecher's statistic graphic for main manuscript, Figure 2C.
+```{r echo = TRUE, eval = TRUE}
+
+fills <- scales::alpha(c("navy", "orange"), 0.75)
+cols <- scales::alpha(c("navy", "orange"), 1)
+
+HS_df2 <- HS_df %>%
+  pivot_longer(
+    cols = c(HS, N_sigs),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  dplyr::mutate(
+    statistic = ifelse(statistic == "HS", "Beecher's\n statistic", "Unique\n signatures"),
+    statistic_measurement = paste(statistic, measurement, sep = ":\n"),
+    statistic_measurement = factor(statistic_measurement)
+  )
+# glimpse(HS_df2)
+
+# levels(HS_df2$statistic_measurement)
+
+# Get values for y axis scale per panel
+scales_y <- list(
+  "Beecher's\n statistic:\nFrequency\n contours" = scale_y_continuous(limits = c(0, 5), breaks = seq(0, 5, 1)),
+  "Beecher's\n statistic:\nMFCC" = scale_y_continuous(limits = c(0, 10), breaks = seq(0, 10, 2)),
+  "Unique\n signatures:\nFrequency\n contours" = scale_y_continuous(limits = c(0, 15), breaks = seq(0, 15, 3)),
+  "Unique\n signatures:\nMFCC" = scale_y_continuous(limits = c(0, 65), breaks = seq(0, 65, 10))
+)
+
+HS_df2 %>%
+  ggplot(aes(x = range, y = values, fill = range, color = range)) +
+  geom_col(width = 0.9) +
+  facet_grid_sc(rows = vars(statistic_measurement), scales = list(y = scales_y), switch = "y") +
+  scale_fill_manual(values = fills) +
+  scale_color_manual(values = cols) +
+  ylab("Values") + xlab("") +
+  theme_bw() +
+  guides(fill = FALSE, color = FALSE) +
+  theme(
+    axis.title.y = element_text(size = 16),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 16),
+    strip.text = element_text(size = 14, margin = margin(1, 0.5, 1, 0.5, "lines")),
+    legend.position = "top",
+    legend.text = element_text(size = 16),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# ggsave(file.path(gpath, "SimplerCalls_Figure2C_BeecherNPotSigs.jpeg"), units = "in", width = 4.52, height = 5.4, dpi = 300)
+
+```
+
+Visualize calls for individuals used to calculate Beecher's statistic per range in acoustic space of frequency contours (DTW on second harmonic frequency contours, then MDS).
+```{r echo = TRUE, eval = TRUE}
+
+freq_mod_DTW <- readRDS(file.path(path, "freq_mod_DTW.RDS"))
+
+dimnames(freq_mod_DTW) <- list(as.character(freq_mod_est_indiv$Bird_ID), as.character(freq_mod_est_indiv$Bird_ID))
+
+# Subset the matrix by individuals used for Beecher's statistic
+indivs <- c(
+  freq_mod_est_indiv %>%
+    filter(site == "1145") %>%
+    pull(Bird_ID) %>%
+    unique(),
+  freq_mod_est_indiv %>%
+    filter(invasive_city == "Austin" & year == "2019") %>%
+    pull(Bird_ID) %>%
+    unique()
+)
+
+indivs
+
+freq_mod_DTW_tmp <- freq_mod_DTW[grep(paste(paste("^", indivs, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW)[[1]]), grep(paste(paste("^", indivs, "$", sep = ""), collapse = "|"), dimnames(freq_mod_DTW)[[2]])]
+str(freq_mod_DTW_tmp)
+
+```
+
+Perform MDS, make a data frame to generate a 2D acoustic space plot.
+```{r echo = TRUE, eval = TRUE}
+
+# DTW is already a distance metric
+iso <- invisible(MASS::isoMDS(stats::as.dist(freq_mod_DTW_tmp, diag = FALSE, upper = FALSE), k = 2, maxit = 1000, trace = FALSE))
+
+# Join with metadata
+mds_df <- data.frame(X = iso$points[, 1]) %>%
+  dplyr::mutate(
+    Y = iso$points[, 2],
+    sound.files = freq_mod_est_indiv %>%
+      filter(Bird_ID %in% indivs) %>%
+      pull(sound.files)
+  ) %>%
+  inner_join(
+    freq_mod_est_indiv %>%
+      filter(Bird_ID %in% indivs) %>%
+      dplyr::select(c(sound.files, Bird_ID, range)),
+    by = "sound.files"
+  ) %>%
+  dplyr::mutate(
+    indiv_ID = as.character(Bird_ID),
+    indiv_ID = factor(indiv_ID, levels = indivs),
+    range = as.character(range),
+    range = factor(range, c("Native", "Invasive"))
+  )
+
+```
+
+### AM4.1
+
+Convex hull polygons indicate acoustic space encompassed per individual.
+```{r, echo = TRUE, eval = TRUE, fig.width = 9, fig.height = 6}
+
+# Initialize aesthetics
+n <- 12
+
+# Fill colors and shapes by individual, ordered by native and then invasive range
+fills <- c("navy", "royalblue2", "turquoise", "dodgerblue", "cyan", "gold4", "darkorange3", "goldenrod2", "gold2", "yellow")
+
+shps <- c(21, 22, 24, 23, 25, 23, 24, 22, 21, 22, 25) 
+
+# Convex hull polygons per indiviual
+hulls <- plyr::ddply(mds_df, "indiv_ID", function(x){
+  x[chull(x$X, x$Y), ]
+})
+
+ggplot(mds_df, aes(x = X, y = Y)) + 
+  # One point per call, with fill colors and shapes by individual
+  geom_point(aes(fill = indiv_ID, shape = indiv_ID), color = "black", size = 7) +
+  geom_polygon(data = hulls, aes(x = X, y = Y, fill = indiv_ID), alpha = 0.2, size = 0.2) +
+  scale_fill_manual(values = fills) +
+  scale_shape_manual(values = shps) +
+  guides(fill = guide_legend(title = "Individual"), shape = guide_legend(title = "Individual", override.aes = list(size = 4))) +
+  xlab("Dimension 1") + ylab("Dimension 2") + 
+  theme_bw() +
+  theme(legend.position = "top") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12)
+    )
+
+```
+
+Nice separation of individuals in acoustic space, note the separation by range as well.
+
+# References
+
+    1. Linhart P., Osiejuk T.S., Budka M., Salek M., Spinka M., Policht R., Syrova M. and D.T. Blumstein. 2019. Measuring individual identity information in animal signals: Overview and performance of available identity metrics. Methods in Ecology and Evolution 10(9), 1558–1570.
+    
+```{r echo = TRUE, eval = TRUE}
+
+sessionInfo()
+
+```
+    
