@@ -4,15 +4,18 @@ subtitle: <center style="font-size:30px;font-style:normal;color:#0E0E7D;">Evalua
  &nbsp;
 author: |
   <center style="font-style:normal;">
-  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://smith-vidaurre.com/">Grace Smith-Vidaurre</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1*</span></sup>, 
-  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Valeria Perez</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup>,
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://smith-vidaurre.com/">Grace Smith-Vidaurre</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1,2,3,4*</span></sup>, 
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Valeria Perez-Marrufo</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup>,
   <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Timothy F. Wright</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup></center>
   &nbsp;
   <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">1</span></sup>Department of Biology, New Mexico State University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">2</span></sup>Laboratory of Neurogenetics of Language, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">3</span></sup>Field Research Center, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">4</span></sup>Department of Biological Sciences, University of Cincinnati</center>
   <br />
   <center style="font-size:18px;"><sup style="font-size:12px;">*</sup>Corresponding author (gsvidaurre@gmail.com)</center>
   &nbsp;
-date: <center style="font-size:22px;font-style:normal;>`r format(Sys.time(), '%d %B %Y')`</center>
+date: <center style=font-size:22px;font-style:normal;>`r format(Sys.time(), '%d %B %Y')`</center>
   <br />
 output: 
   html_document:
@@ -68,7 +71,7 @@ code.r{ /* Code block */
 
 ```{r setup, eval = TRUE, echo = FALSE}
 
-knitr::opts_knit$set(root.dir = "/home/owner/Desktop/GitHub_repos/vocal-learning-invasion")
+knitr::opts_knit$set(root.dir = "/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion")
 
 ```
 
@@ -76,7 +79,7 @@ Supervised machine learning (ML) was employed to assess whether contact call str
 
 Classification accuracy throughout predictive modeling was used as an indicator of structural differentiation between ranges. We also used the RF proximity matrix to visualize overlap between ranges in low dimensional acoustic space. Finally, we used misclassifications per range to more closely evaluate structural change between ranges, as well as structural change over time in the invasive range.
 
-The prefix "AM" stands for "Additional Material" and is used to indicate figures included here that are not present in the main manuscript or supplementary material, but are still valuable for reproducibility.
+The prefix "AM" stands for "Additional Material" and is used to indicate figures included here that are not present in the main manuscript or appendix, but are still valuable for reproducibility. Some of the functions and code in this script may need to be updated in order to reproduce results with more recent versions of the packages used.
 
 ```{r echo = TRUE, eval = TRUE, message = FALSE}
 
@@ -86,14 +89,14 @@ X <- c("warbleR", "ggplot2", "tidyverse", "caret", "MASS", "pbapply", "dplyr", "
 
 invisible(lapply(X, library, character.only = TRUE))
 
-path <- "/media/owner/MYIOPSITTA/R/VocalLearning_PostInvasion/Data"
-gpath <- "/media/owner/MYIOPSITTA/R/VocalLearning_PostInvasion/Graphics"
+path <- "/media/gsvidaurre/MYIOPSITTA/R/VocalLearning_PostInvasion/Data"
+gpath <- "/home/gsvidaurre/Desktop/MANUSCRIPTS/SimplerSignatures_PostInvasion/FIGURES"
 seed <- 401
 cores <- parallel::detectCores() - 2
 
 ```
 
-Read in the extended selection table (EST). This contains metadata and wave objects for pre-processed native and invasive range calls. 
+Read in the extended selection table (EST). This contains metadata and wave objects for pre-processed native and invasive range calls. Throughout this script, you can reproduce analyses by reading in the file "nat_inv_indiv_site_seltbl.csv", which is a selection table made available on figshare that contains metadata needed here. Measurements needed to reproduce analyses here have also been provided on figshare.
 ```{r echo = TRUE, eval = TRUE}
 
 nat_inv_est <- readRDS(file.path(path, "nat_inv_indiv_site_EST.RDS"))
@@ -103,9 +106,7 @@ nat_inv_est <- readRDS(file.path(path, "nat_inv_indiv_site_EST.RDS"))
 
 ## ML training plan
 
-Choose known repeatedly sampled individuals for model training for an independent analysis of hierarchical mapping. The same known repeatedly sampled native range individuals will be used as in previously published results. Unfortunately, we do not have enough individuals sampled at the same site in the invasive range to use birds with high call numbers for training at the same site, as for the native range. So for the invasive range, we took individuals with the most calls instead. Excluded ASCA_2019 as this individual had no social group members. In sum, took 4 individuals per range with the highest numbers of calls. Invasive range birds used for training come from different sites and years.
-
-Here, we did not use these individuals for model training, but we did use them to visually validate the different measurements used as predictors for stochastic gradient boosting and random forests. See the exploratory visuals generated below (AM1 - 7).
+In previous work<a href='#References'><sup>[1]</sup></a>, and an independent analysis of hierarchical mapping, we used known repeatedly sampled individuals for training supervised machine learning models. Here, we did not use these individuals for model training, but we did use these birds to visually validate the different measurements used as predictors for stochastic gradient boosting and random forests models. See the exploratory visuals generated below (AM1 - 7).
 ```{r echo = TRUE, eval = TRUE}
 
 nat_inv_est %>%
@@ -118,7 +119,7 @@ nat_inv_est %>%
 # Invasive range: INV-UM1 (BART_2011), INV-UM7 (ELEM_2019), INV-UM5 (ROBE_2011), INV-UM19 (CAME_2004)
 
 train_indivs <- c("NAT-AAT", "NAT-UM1", "NAT-UM2", "NAT-UM4", "INV-UM19", "INV-UM1", "INV-UM5", "INV-UM7")
-train_indivs
+# train_indivs
 
 ```
 
@@ -196,7 +197,7 @@ saveRDS(mDTW, file.path(path, "DTW_multi.RDS"))
 
 ```
 
-The zeroes off the diagonal for the multivariate DTW matrix were replaced with the minimum distance found in this matrix. This replacement represents the fact that athough these calls were found to be very similar by the algorithm, they were not the same calls compared to each other.
+The zeroes off the diagonal for the multivariate DTW matrix were replaced with the minimum distance found in this matrix. This replacement represents the fact that although these calls were found to be very similar by the algorithm, they were not the same calls compared to each other.
 ```{r echo = TRUE, eval = FALSE}
 
 mDTW <- readRDS(file.path(path, "DTW_multi.RDS"))
@@ -221,25 +222,25 @@ saveRDS(mDTW, file.path(path, "DTW_multi.RDS"))
 
 ```
 
-## Acoustic Structure Measurements
+## Acoustic structure measurements
 
-We collected measurements of contact call acoustic structure across the time, frequency and amplitude domains, as well as Mel-frequency cepstral coefficients. 
+We collected standard spectral measurements of contact call acoustic structure, as well as Mel-frequency cepstral coefficients. 
 ```{r echo = TRUE, eval = FALSE}
 
-# Calculate acoustic parameters across calls
+# Calculate spectral acoustic parameters across calls
 # Exclude measurements related to fundamental frequency (harmonicity = FALSE)
 acs_params <- warbleR::specan(nat_inv_est, bp = c(0.5, 9), wl = 378, wl.freq = 378, ovlp = 90, fast = FALSE, parallel = cores, wn = "hanning", harmonicity = FALSE, path = path)
 glimpse(acs_params)
 
-# Make sure that the selections column is non-numeric and non-integer
+# Make sure that the selec column is non-numeric and non-integer
 acs_params$selec <- as.character(acs_params$selec)
 glimpse(acs_params)
 
-# Write out acousic parameters for later
+# Write out acoustic parameters for later
 write.csv(acs_params, file.path(path, "acoustic_parameters.csv"), row.names = FALSE)
 
 # Also collected acoustic measurements on Mel-frequency cepstral coefficients
-# Chose numcep and nbands by examining patterns of individual overlap and distinctiveness in exploratory visualizations in a previous analysis (Smith-Vidaurre et al. 2020, Behav. Ecol.)
+# Used default values of numcep and nbands because these accurately represented patterns of individual overlap and distinctiveness in exploratory visualizations in a previous analysis (Smith-Vidaurre et al. 2020, Behav. Ecol.)
 cep_coeff <- warbleR::mfcc_stats(nat_inv_est, ovlp = 90, wl = 378, bp = c(0.5, 9), numcep = 12, nbands = 40, parallel = cores, path = path)
 glimpse(cep_coeff)
 
@@ -251,9 +252,9 @@ write.csv(cep_coeff, file.path(path, "Mel_freq_cepstral_coefficients.csv"), row.
 
 ```
 
-## Visual Validation
+## Visual validation
 
-We visualized patterns of acoustic variation within and among individuals by each acoustic similarity or structure measurement, including image measurements. We used MDS and PCA to visualize calls in two dimensional acoustic space by similarity (pairwise matrices) or measurement type (non-pairwise matrices). The individuals used in these visuals are the same individuals used for random forests model training (see below).
+We visualized patterns of acoustic variation within and among repeatedly sampled individuals by each acoustic similarity or structure measurement. We used MDS and PCA to visualize calls in two dimensional acoustic space by similarity measurement (pairwise matrices) or structural measurement type (non-pairwise matrices), respectively. Here, we visually assessed whether a given measurement type recapitulated patterns of overdispersion among individuals in acoustic space that were identified in previous native range work<a href='#References'><sup>[1]</sup></a>, and an independent analysis of hierachical mapping patterns between ranges.
 
 Aesthetics for plots with calls by individual.
 ```{r echo = TRUE, eval = TRUE}
@@ -268,7 +269,7 @@ shps <- c(21, 22, 24, 23, 21, 25, 17, 15, 17)
 
 ```
 
-### Visuals of Similarity Measurements
+### Visuals of similarity measurements
 
 Read in the SPCC and DTW similarity matrices.
 ```{r echo = TRUE, eval = TRUE}
@@ -315,7 +316,7 @@ dimnames(dtw_mult) <- list(wavs, wavs)
 
 ```
 
-Filter similarity matrices by the individuals selected for visual vaidation.
+Filter similarity matrices by the individuals selected for visual validation.
 ```{r echo = TRUE, eval = TRUE}
 
 # Find calls per each individual to be used for model training
@@ -359,7 +360,7 @@ str(dtw_mult_tmp)
 
 ### AM2.1 - AM2.5
 
-Perform MDS per filtered matrix (converted to distance matrices as appropriate), and generate a visual per method.
+Performed MDS per filtered matrix (converted to distance matrices as appropriate), and generated a visual per method.
 ```{r echo = TRUE, eval = TRUE, fig.width = 9, fig.height = 6}
 
 method <- c("SPCC - spectrogram", "SPCC - cepstral coefficients", "DTW - dominant frequency", "DTW - spectral entropy", "DTW - multivariate")
@@ -420,7 +421,7 @@ invisible(pblapply(1:length(mat_list), function(x){
 
 ```
 
-### Visuals of Structural Measurements
+### Visuals of structural measurements
 
 Read in acoustic measurements, including cepstral coefficients. Sound file names do not need to be changed. 
 ```{r echo = TRUE, eval = TRUE}
@@ -441,10 +442,10 @@ cep_coeff <- read.csv(file.path(path, "Mel_freq_cepstral_coefficients.csv")) %>%
 
 ```
 
-Filter acoustic measurements by the individuals that will be used for model training.
+Filter acoustic measurements by the given individuals.
 ```{r echo = TRUE, eval = TRUE}
 
-# Find calls per each individual to be used for model training
+# Find calls per each individual
 
 # Checking, looks good
 nat_inv_est %>%
@@ -535,11 +536,11 @@ invisible(pblapply(1:length(mat_list), function(x){
 
 ```
 
-Overall, these exploratory plots indicate that MDS and PCA features contain information about individual identity (patterns of overdisperson in acoustic space by individual), and different feature sets contain different information. Ready to proceed with feature extraction.
+Overall, these exploratory plots indicated that MDS and PCA features contained information about individual identity (confirmed by checking patterns of overdisperson in acoustic space by individual). Different feature sets also contained different information (patterns of dispersion among individuals were different across different feature types). Ready to proceed with feature extraction.
 
-## Extract Features by MDS and PCA
+## Extract features by MDS and PCA
 
-Here, we extracted MDS features from similarity matrices. We did not find an "optimal" number of dimensions as in previous work, but instead chose to keep the number of MDS dimensions the same across measurement types and social scales. We extracted MDS features separately per social scales because the site social scale contains some of the same calls as the individual scale dataset (suffix "_site_scale" in sound file names), and MDS cannot handle duplicated calls (pairwise similarity = 1 or pairwise distance = 0 off of the matrix diagonal). I proceeded with this feature extraction routine such that feature extraction was performed in the same way for this analysis and the independent analysis of hierarchical mapping, but for this analysis of acoustic structure, I removed the "_site_scale" suffix calls after feature extraction and prior to training models. 
+Here, we extracted MDS features from similarity matrices. We did not find an "optimal" number of dimensions as in previous work, but instead chose to keep the number of MDS dimensions the same across measurement types and datasets. We extracted MDS features separately per dataset because the larger dataset representing greater geographic spread contained some of the same calls as the dataset of repeatedly sampled individuals (suffix "_site_scale" in sound file names), and MDS cannot handle duplicated calls (pairwise similarity = 1 or pairwise distance = 0 off of the matrix diagonal). I proceeded with this feature extraction routine such that feature extraction was performed in the same way for this analysis and the independent analysis of hierarchical mapping, but for this analysis of acoustic structure, I removed the "_site_scale" suffix calls after feature extraction and prior to training models. 
 
 Get calls for both social scales.
 ```{r echo = TRUE, eval = FALSE}
@@ -709,9 +710,9 @@ dims
 
 ```
 
-## Combine Features Across Social Scales
+## Combine features across datasets
 
-Combine MDS and PCA features across social scales into a single data frame. For each feature type, make a data frame with a sound.files column, and merge data frames with the full EST afterwards using this column. 
+Combine MDS and PCA features across call datasets into a single data frame. For each feature type, make a data frame with a sound.files column, and merge data frames with the full selection table afterwards using this column. 
 ```{r echo = TRUE, eval = FALSE}
 
 dim_red <- c("MDS", "PCA")
@@ -785,12 +786,12 @@ str(feat_df_list[["Site"]])
 
 ```
 
-Combine each set of features across parameter types with metadata in the extended selection table per social scale, then combine data across social scales. Note that a column "rf_set" was added to each social scale for model training, validation and prediction for the hierarchical mapping analysis. This will be ignored for the structural analysis here, as I split calls into training, validation and prediction datasets differently for this question.
+Combine each set of features across measurement types with metadata in the extended selection table per call dataset, then combine features across datasets. Note that a column "rf_set" was added to each social scale for model training, validation and prediction for the hierarchical mapping analysis. This will be ignored for the structural analysis here, as I split calls into training, validation and prediction datasets differently for this manuscript.
 
-Individual scale.
+Repeatedly sampled individuals.
 ```{r echo = TRUE, eval = FALSE}
 
-# Features that will be used for random forests modeling
+# Features that will be used for random forests modelling
 names(feat_df_list[["Individual"]][["MDS"]])
 names(feat_df_list[["Individual"]][["PCA"]])
 
@@ -829,7 +830,7 @@ glimpse(indiv_df)
 
 ```
 
-Site scale.
+Dataset representing broader geographic sampling.
 ```{r echo = TRUE, eval = FALSE}
 
 # Features that will be used for random forests modeling
@@ -842,7 +843,7 @@ site_df <- nat_inv_est %>%
     c(sound.files, date, range, social_scale, site, Bird_ID, region, country, site_year, year, dept_state, invasive_city)
   ) %>%
   # Add a new column to split calls into datasets for predictive modeling
-  # All site scale calls will be used for random forests prediction
+  # Calls used for random forests prediction
   dplyr::mutate(
     rf_set = "prediction",
   ) %>%
@@ -871,7 +872,7 @@ glimpse(site_df)
 
 ```
 
-Merge the individual and site scale features and metadata into a single data frame for random forests modeling.
+Merged the individual and site scale features and metadata into a single data frame for random forests modelling.
 ```{r echo = TRUE, eval = FALSE}
 
 sup_rf_df <- bind_rows(indiv_df, site_df)
@@ -888,9 +889,9 @@ write.csv(sup_rf_df, file.path(path, "supervised_RF_datasets_acousticSimilarity.
 
 # Splitting data
 
-How to split calls into training, validation, prediction? First we need to figure out which invasive range areas were sampled over time, to perform both spatial comparisons between ranges, and account for potential temporal change in the invasive range.
+How to split calls into training, validation, prediction sets to address the main question? Here, we wanted to train supervised machine learning models to classify calls back to ranges as a way to infer whether calls were structurally different between ranges. First we needed to figure out which invasive range areas were sampled over time, to perform both spatial comparisons between ranges, and account for potential temporal change in the invasive range.
 
-Drop calls with the suffix "_site_scale", as these were a single call per repeatedly sampled individual included at the site scale for hierarchical mapping analysis. Also drop the 4 NAT-UM4 calls that were inadvertently retained at the site scale in previous analysis<a href='#References'><sup>[1]</sup></a>. We used the remaining 1561 calls for supervised machine learning analyses.
+Drop calls with the suffix "_site_scale", as these were a single call per repeatedly sampled individual included at the site scale for hierarchical mapping analysis. Also drop the 4 NAT-UM4 calls that were inadvertently retained at the site scale in previous analysis (but did not change results reported)<a href='#References'><sup>[1]</sup></a>. We used the remaining 1561 calls for supervised machine learning analyses.
 ```{r echo = TRUE, eval = TRUE}
 
 dropUM4 <- nat_inv_est %>%
@@ -900,6 +901,7 @@ dropUM4 <- nat_inv_est %>%
 dropUM4
 
 nat_inv_est <- nat_inv_est %>%
+  as_tibble() %>%
   filter(!grepl("site_scale", sound.files)) %>%
   filter(!sound.files %in% dropUM4) %>%
   droplevels()
@@ -939,6 +941,7 @@ For Austin, take calls from site-years not sampled over time for the spatial que
 ```{r echo = TRUE, eval = TRUE}
 
 spatial_austin <- nat_inv_est %>%
+  as_tibble() %>%
   # filter(social_scale == "Site") %>%
   filter(invasive_city %in% c("Austin")) %>%
   group_by(invasive_city, site) %>%
@@ -949,6 +952,7 @@ spatial_austin <- nat_inv_est %>%
   ungroup() %>%
   inner_join(
     nat_inv_est %>%
+      as_tibble() %>%
       # filter(social_scale == "Site") %>%
       dplyr::select(site, sound.files, year),
     by = "site"
@@ -1045,13 +1049,13 @@ nat_inv_est %>%
 
 Pretty decent number of sites sampled over time. We can assess change over time at two scales, either for the whole city or sites within cities. New Orleans can be assessed only at the city scale, but Austin can be assessed at specific sites over time.
 
-# Sampling for ML comparison between ranges
+# Sampling for predictive modelling
 
-Split the invasive range calls as well for the spatial (between ranges) and temporal (over time in the invasive range) comparisons. Here, setting aside site-years in Austin sampled over time, and 2 sites in New Orleans per sampling year for the temporal question, and the rest for the spatial comparison between ranges. The set of sites per comparison will be sampled differently for training, validation, prediction.
+Split the invasive range calls for the spatial (between ranges) and temporal (over time in the invasive range) comparisons. Here, setting aside site-years in Austin sampled over time, and 2 sites in New Orleans per sampling year for the temporal question, and the rest for the spatial comparison between ranges. The set of sites per comparison will be sampled differently for training, validation, prediction.
 
-For native range sites and invasive range sites used for spatial comparison between ranges, took 1/2 of total calls per site for training. Among the remaining calls, I took 1/3 for validation and 2/3 for prediction. For invasive range sites used for temporal comparisons (change over time in the invasive range), I set 20 calls aside for prediction (or all calls if less than 20 were present), and split the remaining calls by half into validation and training (or none for either, if all calls taken for prediction).
+For native range sites and invasive range sites used for the comparison between ranges, I took 1/2 of the total calls per site for training. Among the remaining calls, I took 1/3 for validation and 2/3 for prediction. For invasive range sites used for temporal comparisons (change over time in the invasive range), I set 20 calls aside for prediction (or all calls if less than 20 were present), and split the remaining calls by half into validation and training (or none for either, if all calls taken for prediction).
 
-Split the invasive range individual and site scale calls into spatial and temporal datasets, as random sampling will be done differently depending on whether a given site/city was sampled over time.
+Split the invasive range calls into spatial and temporal datasets, as random sampling will be done differently depending on whether a given site/city was sampled over time.
 ```{r echo = TRUE, eval = TRUE}
 
 inv_spatial <- nat_inv_est %>%
@@ -1063,8 +1067,7 @@ inv_spatial <- nat_inv_est %>%
     nat_inv_est %>%
     filter(range == "Invasive") %>%
     filter(site %in% c(sp_aust_sites, sp_norl_sites))
-  ) %>%
-  droplevels()
+  ) 
 
 # unique(inv_spatial$site)
 # glimpse(inv_spatial)
@@ -1074,8 +1077,7 @@ inv_temporal <- nat_inv_est %>%
   # Filter to Austin and New Orleans sites
   filter(invasive_city %in% c("Austin", "New Orleans")) %>%
   # Exclude sites already designated for the spatial question
-  filter(!site %in% c(sp_aust_sites, sp_norl_sites)) %>%
-  droplevels()
+  filter(!site %in% c(sp_aust_sites, sp_norl_sites)) 
 
 # unique(inv_temporal$site)
 # glimpse(inv_temporal)
@@ -1103,11 +1105,11 @@ inv_temporal %>%
   
 ```
 
-## General ML approach
+## General predictive modelling approach
 
-Did contact call structure change after invasion? Supervised ML models were trained to discriminate between native and invasive range calls (ranges were class labels in this two-class problem). After validating models, we chose one model to predict classes (native or invasive) of calls in the prediction dataset that were set aside for spatial and temporal comparisons. We used classification accuracy throughout the modeling process as an indicator of structural differences between ranges, and visualized overlap between ranges in low-dimensional acoustic space. We assessed the number of misclassified calls different cities in the U.S. for a finer geographic perspective on structural change, and used misclassified calls from Austin and New Orleans to assess the possibility of structural change over time in the invasive range.
+Did contact call structure change after invasion? Supervised ML models were trained to discriminate between native and invasive range calls (ranges were class labels in this two-class prediction problem). After validating models, we chose one model to predict classes (native or invasive range) of calls in the prediction dataset that were set aside for spatial and temporal comparisons. We used classification accuracy throughout the modeling process as an indicator of structural differences between ranges, and visualized overlap between ranges in low-dimensional acoustic space. We assessed the number of misclassified calls from different cities in the U.S. for a finer geographic assessment of structural change, and used misclassified calls from Austin and New Orleans to assess the possibility of structural change over time in the invasive range.
 
-## Split data for ML
+## Split data for predictive modelling
 
 Sampling scheme across native and invasive ranges for the spatial and temporal comparisons, as described above. 
 ```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
@@ -1133,7 +1135,7 @@ ML_scheme <- nat_inv_est %>%
     n_prediction = total_calls - (n_train + n_validation)
   ) %>% 
   ungroup() %>%
-  # Make sampling scheme for the native and invasive sites used for spatial questions
+  # Make sampling scheme for the invasive sites used for temporal questions
   # Set aside 20 calls or the minimum for prediction
   # Evenly split the rest between training and validation
   bind_rows(
@@ -1290,7 +1292,7 @@ prediction_df %>%
 
 ```
 
-The balance between the native and invasive classes is pretty even, although most balanced for training. The percentage of calls used acrossd these datasets for predictive modeling is pretty good as well (almost 1/2 of calls used for training, the rest split between validation and prediction).
+The balance between the native and invasive classes is pretty even, although most balanced for training. The percentage of calls used across these datasets for predictive modeling is pretty good as well (almost 1/2 of calls used for training, the rest split between validation and prediction).
 
 ## Evaluate sample sizes
 
@@ -1306,7 +1308,7 @@ prediction_df %>%
 
 ```
 
-How many sites and calls per range and site-year in the prediction dataset for the spatial question? 37 native, 15 invasive site-years (two invasive sites are individual scale only).
+How many sites and calls per range and site-year in the prediction dataset for the comparison between ranges? 37 native, 15 invasive site-years (two invasive sites are individual scale only).
 ```{r echo = TRUE, eval = TRUE}
 
 spat_pred_sites <- inv_spatial %>%
@@ -1324,7 +1326,7 @@ prediction_df %>%
 
 ```
 
-How good is our spatial resolution of the invasive range for prediction? Not bad, although resolution for Dallas and New Orleans is poor. But the number of calls for Dallas was limited to begin with (9 calls total), and we had a native - invasive comparison built into the temporal question (another opportunity to evaluate New Orleans calls with respect to native range calls).
+How good is our spatial resolution of the invasive range for prediction? Not bad, although resolution for Dallas and New Orleans is poor. But the number of calls for Dallas was limited to begin with (9 calls total), and we had a native - invasive comparison built into the temporal question because native range calls were set aside for prediction as well (another opportunity to evaluate New Orleans calls with respect to native range calls).
 ```{r echo = TRUE, eval = TRUE}
 
 # Invasive range only, spatial comparison calls 
@@ -1396,7 +1398,7 @@ prediction_df %>%
 
 ```
 
-## Final ML dataset
+## Final predictive modelling dataset
 
 Combined the training, validation and prediction datasets into a single object.
 ```{r echo = TRUE, eval = FALSE}
@@ -1423,7 +1425,7 @@ glimpse(sup_ML_o)
 
 ```
 
-Merge this data frame with the features measured above. We also decided to add the standard set of acoustic parameters, as it is easier map structural differentiation back to raw measurements instead of features, which are less interpretable combinations of those raw measurements. Retained metadata useful for subsequent analyses.
+Merge this data frame with the features measured above. We also decided to add the standard set of spectral acoustic measurements, as it is easier map structural differentiation back to raw measurements instead of features (like principal components), which are less interpretable combinations of original measurements. Retained metadata useful for subsequent analyses.
 ```{r echo = TRUE, eval = FALSE}
 
 # Features generated for supervised random forests that can be used for other classification questions by supervised ML (full EST across social scales)
@@ -1432,11 +1434,10 @@ ML_feats_df <- read.csv(file.path(path, "supervised_RF_datasets_acousticSimilari
     year = as.character(year)
   ) %>%
   # Remove image features that were generated for a separate analysis of hierarchical mapping
-  dplyr::select(-c(names(.)[grep("^img_", names(.))])) %>%
-  rename(range = population)
+  dplyr::select(-c(names(.)[grep("^img_", names(.))]))
 glimpse(ML_feats_df)
 
-# 27 raw acoustic measurements across calls (full EST across social scales)
+# 27 original spectral acoustic measurements across calls (full EST across social scales)
 acs_params <- read.csv(file.path(path, "acoustic_parameters.csv")) %>%
   dplyr::mutate(
     selec = as.character(selec)
@@ -1495,7 +1496,7 @@ corr_nms
 
 ```
 
-Check collinearity with SNR too. Using Pearson's correlation statistic as above.
+Check collinearity with signal to noise ratio (SNR) too. Using Pearson's correlation.
 ```{r echo = TRUE, eval = FALSE}
 
 # Are sound files still in the same order? If so, then can do the column addition below
@@ -1563,12 +1564,20 @@ length(which(sapply(sup_ML_df, is.numeric)))
 
 ```
 
-15 of these predictors were raw acoustic measurements (188 MDS or PCA features). I decided to use these predictors following prediction with the final model to determine whether any of these measurements explained structural differences between the native and invasive range (see partial dependence plots below).
+15 of these predictors were original acoustic measurements, and 188 were MDS or PCA features. I decided to use these predictors later to determine whether any of the original spectral measurements explained the probability of assignment of calls back to either range by the final model (an indication of structural differences between ranges, see partial dependence plots below).
 ```{r echo = TRUE, eval = TRUE}
 
 pnms <- names(sup_ML_df)[which(sapply(sup_ML_df, is.numeric))]
 length(pnms[-grep("MDS|PCA", pnms)])
 pnms[-grep("MDS|PCA", pnms)]
+
+length(pnms[grep("SPCC_spec", pnms)])
+length(pnms[grep("SPCC_ceps", pnms)])
+length(pnms[grep("DTW_domf", pnms)])
+length(pnms[grep("DTW_spen", pnms)])
+length(pnms[grep("DTW_mult", pnms)])
+length(pnms[grep("acs_params", pnms)])
+length(pnms[grep("cep_coeff", pnms)])
 
 ```
 
@@ -1589,11 +1598,11 @@ raw_params_df <- sup_ML_df %>%
     range = as.character(range),
     range = factor(range, levels = c("Native", "Invasive"))
   )
-glimpse(raw_params_df)
+# glimpse(raw_params_df)
 
-names(raw_params_df)
+# names(raw_params_df)
 
-levels(raw_params_df$range)
+# levels(raw_params_df$range)
 cols <- scales::alpha(c("navy", "orange"), 0.85)
 
 raw_params_df %>%
@@ -1622,11 +1631,11 @@ raw_params_df %>%
 
 ```
 
-Some of these raw acoustic parameters show visible differences between ranges.
+Some of these spectral acoustic measurements show visible differences between ranges.
 
-## Predictive modeling approach
+## Training and tuning models
 
-Trained and tuned models for classification back to native or invasive range that have built-in variable importance metrics: stochastic gradient boosting and random forests. I wanted to be able to assess the importance of the raw acoustic measurements and acoustic features used as predictors.
+Trained and tuned models for classification back to the native or invasive range that have built-in variable importance metrics: stochastic gradient boosting and random forests. I wanted to be able to assess the importance of the raw acoustic measurements and acoustic features used as predictors.
 
 Initialize training data, retain only columns needed for machine learning.
 ```{r echo = TRUE, eval = TRUE}
@@ -1697,7 +1706,7 @@ model_GBM
 
 ```
 
-Check out the confusion matrix: 92.28% accuracy by repeated cross-validation. 95% CI : (91.33, 93.16). Kappa = 0.8453.
+Check out the confusion matrix: 92.28% accuracy by repeated cross-fold validation. 95% CI : (91.33, 93.16). Kappa = 0.8453.
 ```{r echo = TRUE, eval = TRUE}
 
 confusionMatrix(model_GBM$pred$obs, model_GBM$pred$pred)
@@ -1706,7 +1715,7 @@ confusionMatrix(model_GBM$pred$obs, model_GBM$pred$pred)
 
 ## Random forests
 
-Spatial random forests (RF) training and tuning. Setting the seed here is not really necessary, every forest will be slightly different.
+Spatial random forests (RF) training and tuning. Setting the seed here is not really necessary, as every forest will be different due to the random sampling at every node.
 ```{r echo = TRUE, eval = FALSE}
 
 # 10 mtry values for tuning
@@ -1764,7 +1773,7 @@ Both models performed really well with > 90% training classification accuracy.
 
 ## Variable importance
 
-Here, a good number of the raw acoustic parameters had high importance. The most important among the raw measurements were spectral entropy and frequency interquartile range (freq.IQR).
+Here, a good number of the original spectral acoustic measurements had high importance. The most important among the spectral acoustic measurements were spectral entropy and frequency interquartile range (freq.IQR).
 ```{r echo = TRUE, eval = FALSE}
 
 n <- 12
@@ -1923,9 +1932,9 @@ dev.off()
 
 ### AM2.10
 
-![Variable importance per model](/home/owner/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/AM10_VarImp.jpeg)
+![Variable importance per model](/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/AM10_VarImp.jpeg)
 
-The models share some of the top most important variables, but the RF model has more raw acoustic parameters than the GBM model in the top 30 most important features. Although GBM slightly outperformed RF in terms of classification accuracy, I decided to proceed with RF for validation and prediction, because this model had more of the raw acoustic parameters included in the top important variables, and I wanted to try assessing partial dependence on these raw parameters to take a closer look at structrual differences in calls between ranges.
+The models shared some of the top most important variables, but the RF model had more original spectral acoustic measurements than the GBM model in the top 30 most important features. Although GBM slightly outperformed RF in terms of classification accuracy, I decided to proceed with RF for validation and prediction, because this model had more original spectral acoustic measurements included in the top important variables, and I wanted to try assessing partial dependence on these measurements to take a closer look at structural differences in calls between ranges.
 
 Proceeding with RF model validation. Here, looking for warning signs associated with overfitting on the training data, specifically, substantially lower validation accuracy compared to training.
 ```{r echo = TRUE, eval = TRUE}
@@ -1942,7 +1951,7 @@ head(names(validation_df))
 
 ```
 
-The RF model had 91.99% validation accuracy, similarly high compared to cross-validated training accuracy. 20 invasive range and 7 native range calls were misclassified.
+The RF model had 91.99% validation accuracy, similarly high compared to cross-fold validated training accuracy. 20 invasive range and 7 native range calls were misclassified.
 ```{r echo = TRUE, eval = TRUE}
 
 # Consider using probability of labels
@@ -1977,7 +1986,7 @@ head(names(prediction_df))
 
 ```
 
-Carried out prediction with the final RF model. Overall prediction accuracy was 87.59%. 46 invasive range calls and 22 native range calls misclassified.
+Carried out prediction with the final RF model. Overall prediction accuracy was 87.59%. 46 invasive range calls and 22 native range calls were misclassified.
 ```{r echo = TRUE, eval = TRUE}
 
 predict_RF <- predict(model_RF, newdata = prediction_df, type = "raw")
@@ -1999,17 +2008,21 @@ saveRDS(predict_RF_prob, file.path(path, "predict_RF_prob.RDS"))
 
 ```
 
-Add prediction results to the prediction dataset.
+Added prediction results to the prediction dataset.
 ```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
 
 predict_RF <- readRDS(file.path(path, "predict_RF.RDS"))
+# glimpse(predict_RF)
+
 predict_RF_prob <- readRDS(file.path(path, "predict_RF_prob.RDS"))
+# glimpse(predict_RF_prob)
 
 predict_res <- sup_ML_df %>%
   filter(set == "prediction") %>%
   dplyr::select(c(sound.files, range)) %>%
   inner_join(
     nat_inv_est %>%
+      as_tibble() %>%
       dplyr::select(c(sound.files, range, year, site, site_year, invasive_city)),
     by = c("sound.files", "range")
   ) %>% 
@@ -2041,6 +2054,7 @@ Perform MDS in 2 dimensions.
 
 rf_proxm <- readRDS(file.path(path, "rf_proxm_call_structure.RDS"))
 # head(rf_proxm)
+# dim(rf_proxm)
 
 iso <- invisible(MASS::isoMDS(stats::as.dist(1 - rf_proxm, diag = FALSE, upper = FALSE), k = 2, maxit = 1000, trace = FALSE))
 
@@ -2069,7 +2083,7 @@ mds_rf <- data.frame(X = iso$points[, 1]) %>%
 
 All sites used for RF prediction in RF acoustic space. This is a main figure, with a Gaussian kernel density estimator used to generate contours in acoustic space.
 
-I relied on geom_density2d for visualizing density contours. This function uses MASS:kde2d to apply a two dimensional Gaussian density kernel to the MDS coordinates. For each kernel density estimator (KDE) per range, I set the bandwidth (argument h in geom_density2d) that controls the width of the kernel density estimator in both dimensions to 0.5. In other words, the KDE had a width of 0.5 in each direction (x and y). After the density was estimated by geom_density2d, contours were drawn across bins of the density values. Here, I set the binwidth to 1/10th of the maximum density value per range, such that density values per range were split into 10 bins of even width. Note that I flipped x-axis coordinates so that the native range contours were on the left side of the graphic.
+I relied on geom_density2d for visualizing density contours. This function uses MASS::kde2d to apply a two dimensional Gaussian density kernel to the MDS coordinates. For each kernel density estimator (KDE) per range, I set the bandwidth (argument h in geom_density2d) that controls the width of the kernel density estimator in both dimensions to 0.5. In other words, the KDE had a width of 0.5 in each direction (x and y). After the density was estimated by geom_density2d, contours were drawn across bins of the density values. Here, I set the binwidth to 1/10th of the maximum density value per range, such that density values per range were split into 10 bins of even width. Note that I flipped x-axis coordinates so that the native range contours were on the left side of the graphic.
 ```{r echo = TRUE, eval = TRUE, fig.width = 8, fig.height = 6}
 
 # levels(mds_rf$range)
@@ -2145,6 +2159,50 @@ ggplot(data = mds_rf, aes(x = X, y = Y)) +
     axis.text = element_text(size = 14),
     legend.title = element_text(size = 16),
     legend.text = element_text(size = 16),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks = element_line(size = 0.35),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.box.margin = margin(-5, -5, -5, -5),
+    legend.key.width = unit(3, "lines")
+  )
+
+ggsave(file.path(gpath, "KernelDensity_RFAcousticSpace.tiff"), units = "in", width = 11, height = 3.06, dpi = 300) # Main manuscript
+
+```
+
+```{r echo = FALSE, eval = FALSE}
+
+# Another version of the figure above for talks
+# I tried making filled contours but 1) cannot put two scale fill calls on the same plot, and 2) it's nice to see overlap between the two distributions 
+ggplot(data = mds_rf, aes(x = X, y = Y)) +
+  geom_density2d(
+    data = mds_rf %>%
+      filter(range == "Native") %>%
+      droplevels(),
+    size = 0.65,
+    binwidth = bw_nat,
+    h = h,
+    color = cols[1]
+    ) +
+  geom_density2d(
+    data = mds_rf %>%
+      filter(range == "Invasive") %>%
+      droplevels(),
+    size = 0.65,
+    binwidth = bw_inv,
+    h = h,
+    color = cols[2]
+    ) +
+  scale_color_manual(values = cols) +
+  xlab("Multidimensional Scaling Dimension 1") + ylab(" MDS Dimension 2") + 
+  theme_bw() +
+  theme(
+    legend.position = "top",
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    legend.title = element_text(size = 16),
+    legend.text = element_text(size = 16),
     panel.grid.major = element_line(size = 0.35),
     panel.grid.minor = element_line(size = 0.35),
     axis.ticks = element_line(size = 0.35),
@@ -2153,36 +2211,7 @@ ggplot(data = mds_rf, aes(x = X, y = Y)) +
     legend.key.width = unit(3, "lines")
   )
 
-# ggsave(file.path(gpath, "Figure01_KernelDensity_RFAcousticSpace.tiff"), units = "in", width = 11, height = 3.06, dpi = 300) # Main manuscript
-
-```
-
-```{r echo = FALSE, eval = FALSE}
-
-# Another version of the figure above for ABS 2020 talk
-levels(mds_rf$range)
-cols <- scales::alpha(c("navy", "orange"), 0.85)
-
-ggplot(data = mds_rf, aes(x = X, y = Y, color = range)) + 
-  geom_density2d(size = 0.65) +
-  scale_color_manual(values = cols) +
-  xlab("Dimension 1") + ylab("Dimension 2") + 
-  guides(color = guide_legend(title = "Range", override.aes = list(size = 2.5, width = 0.5))) +
-  theme_bw() +
-  theme(
-    axis.title = element_text(size = 16),
-    axis.text = element_text(size = 12),
-    legend.title = element_text(size = 16),
-    legend.text = element_text(size = 16),
-    panel.grid.major = element_line(size = 0.15),
-    panel.grid.minor = element_line(size = 0.15),
-    axis.ticks = element_line(size = 0.15),
-    legend.position = "top",
-    legend.margin = margin(0, 0, 0, 0),
-    legend.box.margin = margin(-5, -5, -5, -5)
-  )
-
-ggsave(file.path(gpath, "KernelDensity_RFAcousticSpace_sm.tiff"), units = "in", width = 5.8, height = 5.5, dpi = 300) # ABS 2020
+ggsave(file.path(gpath, "KernelDensity_RFAcousticSpace_sm.tiff"), units = "in", width = 5.84, height = 4.64, dpi = 300) 
 
 ```
 
@@ -2192,7 +2221,7 @@ After visualizing invasive and native range calls in RF acoustic space, we took 
 
 ## Spatial comparisons
 
-Which invasive range cities and sites were missclassified during prediction? The fact that we could build a model with high training and validation accuracy is a good indicator that there are indeed structural differences between ranges, but it was possible that some regions of the invasive range were more native range-like in call structure, and if so, such calls should have been misclassified to the native range.
+Which invasive range cities and sites were missclassified during prediction? The fact that we could build a model with high training and validation accuracy was a good indicator that there were indeed structural differences between ranges, but it was possible that some regions of the invasive range were more native range-like in call structure. If so, such calls should have been misclassified to the native range.
 
 Checking out missclassification in the invasive range by city. While more calls were misclassified for Milford CT, this city also had more representation in the prediction dataset (35 calls). Overall, we saw no clear pattern of misclassification back to native range (e.g. structural change) by invasive city or region.  
 ```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
@@ -2212,6 +2241,7 @@ inv_spat_pred <- predict_res %>%
       dplyr::select(c(sound.files, range)) %>%
       inner_join(
         nat_inv_est %>%
+          as_tibble() %>%
           filter(range == "Invasive") %>%
           # Filter by sites for spatial question
           filter(site_year %in% unique(inv_spatial$site_year)) %>%
@@ -2247,6 +2277,7 @@ predict_res %>%
       dplyr::select(c(sound.files, range)) %>%
       inner_join(
         nat_inv_est %>%
+          as_tibble() %>%
           filter(range == "Native") %>%
           dplyr::select(c(sound.files, range, site, region)),
         by = c("sound.files", "range")
@@ -2262,6 +2293,41 @@ predict_res %>%
   kable()
 
 ```
+
+Note that BCAR and FAGR were native range urban sites in Montevideo. Which sites had no misclassifications during prediction?
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+predict_res %>%
+  filter(range == predicted_class & range == "Native") %>%
+  group_by(range, site) %>%
+  dplyr::summarise(
+    n_corrclass = length(sound.files)
+  ) %>%
+  # Add number of calls used for prediction
+  inner_join(
+    sup_ML_df %>%
+      filter(set == "prediction" & range == "Native") %>%
+      dplyr::select(c(sound.files, range)) %>%
+      inner_join(
+        nat_inv_est %>%
+          as_tibble() %>%
+          filter(range == "Native") %>%
+          dplyr::select(c(sound.files, range, site, region)),
+        by = c("sound.files", "range")
+      ) %>%
+      group_by(range, region, site) %>%
+      dplyr::summarise(
+        n_total = length(sound.files)
+      ),
+    by = c("range", "site")
+  ) %>% 
+  dplyr::select(range, site, region, n_corrclass, n_total) %>%
+  arrange(region) %>%
+  kable()
+
+```
+
+The other two native range urban sites, CEME and GOLF, had 100% correct classification back to the native range (2 and 7 calls, respectively).
 
 ## Temporal comparisons
 
@@ -2341,7 +2407,7 @@ inv_temp_pred %>%
 
 ```
 
-Note that these difference in misclassifications among years rely on few calls, so this difference in misclassification over time is pretty weak. In addition, these results are not in line with what we would have predicted for change over time. If populations grew or decreased in size, we would expect to see directional increase or decrease in misclassification accuracy representing more or less structural change to become more or less native-range like over time.
+Note that these difference in misclassifications among years rely on few calls, so this difference in misclassification over time is pretty weak. In addition, these results are not in line with what we would have predicted for change over time. If populations grew or decreased in size, we would expect to see directional increase or decrease in misclassification accuracy, which would have represented more or less structural change (becoming more or less native-range like over time).
 
 ### AM2.12
 
@@ -2392,7 +2458,7 @@ inv_temp_pred %>%
 
 ### AM2.13
 
-Was misclassification of invasive range calls in the prediction dataset driven by SNR? If so, we would expect lower SNR calls to be misclassified. This wasn't the case, instead, calls that were misclassified had higher mean SNR. 
+Was misclassification of invasive range calls in the prediction dataset driven by SNR? If so, we would expect lower SNR calls to be misclassified. This was not the case. Instead, calls that were misclassified had higher mean SNR. 
 ```{r echo = TRUE, eval = TRUE, message = FALSE}
 
 SNR_df <- predict_res %>%
@@ -2431,7 +2497,7 @@ SNR_df %>%
 
 ## Partial dependence plots
 
-Check out partial dependence plots for raw acoustic parameters.
+Checked out random forests partial dependence plots for original spectral acoustic measurements. Did any of these measurements show a change in assignment probability back to the native range for certain values? For instance, were shorter duration calls more likely to be assigned to the invasive range? Such patterns would point to structural differences in calls between ranges. The original acoustic measurements used here are easier to interpret than features used for random forests. In other words, assignment probability back to the invasive range can be assessed across the values of a single given measurement, rather than values of a given feature (which is a combination of multiple original measurements).
 ```{r echo = TRUE, eval = FALSE}
 
 model_RF <- readRDS(file.path(path, "model_RF.RDS"))
@@ -2479,18 +2545,21 @@ dev.off()
 
 ```
 
-### AM2.14, AM2.15
+### AM2.14
 
-![PDPs page 1](/home/owner/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/PDP_RF_01.jpeg)
+![partial dependence plots, page 1](/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/PDP_RF_01.jpeg)
 
-![PDPs page 2](/home/owner/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/PDP_RF_02.jpeg)
+### AM2.15
 
-Some interesting trends in these plots by different predictors (e.g modulation index), but take note of the small range of the y-axis for most of these values, which indicates small overall changes in classification probability. In tese plots, y-hat on the y-axis is the probability of classification back to the invasive range (e.g. lower values indicate higher classification back to the native range). Black lines indicate the unsmoothed relationship between classification back to the invasive range over the distribution of eah parameter. The blue line per panel is the Loess-smoothed line.
+![partial dependence plots, page 2](/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/PDP_RF_02.jpeg)
+
+Some interesting trends in these plots by different predictors (e.g modulation index), but take note of the small range of the y-axis for most of these values, which indicates small overall changes in classification probability. In these plots, y-hat on the y-axis is the probability of classification back to the invasive range (e.g. lower values indicate higher classification back to the native range). Black lines indicate the unsmoothed relationship between classification back to the invasive range over the distribution of each parameter. The blue line per panel is the Loess-smoothed line.
 
 # References
 
     1. Smith-Vidaurre, G., Araya-Salas, M., and T.F. Wright. 2020. Individual signatures outweigh social group identity in contact calls of a communally nesting parrot. Behavioral Ecology 31(2), 448-458.
 
+The session info printed here represents the environment used for the final RMarkdown knitting. The software and package versions employed for main results are reported in the appendix of the associated article.
 ```{r echo = TRUE, eval = TRUE}
 
 sessionInfo()

@@ -1,0 +1,3230 @@
+---
+title: <center style="font-size:30px;font-style:normal;color:black;">Additional Materials 03 :</center>
+subtitle: <center style="font-size:30px;font-style:normal;color:#0E0E7D;">Frequency Modulation Patterns and Habitat Analysis</center>
+ &nbsp;
+author: |
+  <center style="font-style:normal;">
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://smith-vidaurre.com/">Grace Smith-Vidaurre</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1,2,3,4*</span></sup>, 
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Valeria Perez-Marrufo</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup>,
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Timothy F. Wright</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup></center>
+  &nbsp;
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">1</span></sup>Department of Biology, New Mexico State University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">2</span></sup>Laboratory of Neurogenetics of Language, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">3</span></sup>Field Research Center, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">4</span></sup>Department of Biological Sciences, University of Cincinnati</center>
+  <br />
+  <center style="font-size:18px;"><sup style="font-size:12px;">*</sup>Corresponding author (gsvidaurre@gmail.com)</center>
+  &nbsp;
+date: <center style=font-size:22px;font-style:normal;>`r format(Sys.time(), '%d %B %Y')`</center>
+  <br />
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+---
+
+<style type="text/css">
+
+a:hover {
+  color: #23527c !important;
+}
+
+h1.title {
+  font-size: 32px;
+  color: black;
+  font-weight: normal;
+}
+
+h1 {
+   color: black;
+   font-size: 26px;
+   font-weight: normal;
+}
+
+h2 {
+   color: black;
+   font-size: 24px;
+   font-weight: bold;
+}
+
+h3 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+h4 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+body{ /* Normal */
+      font-size: 18px;
+  }
+code.r{ /* Code block */
+    font-size: 18px;
+}
+</style>
+
+```{r setup, eval = TRUE, echo = FALSE}
+
+knitr::opts_knit$set(root.dir = "/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion")
+
+```
+
+This script was the second part of our analysis of structural differences between ranges. Here we asked whether frequency modulation patterns, a structural component of learned signals that can partially encode individual identity, were significantly simpler in invasive range calls. We traced second harmonic frequency contours for a subset of native and invasive range calls, then  obtained 3 frequency modulation measurements from these contours. We also obtained a standard set of spectral acoustic measurements from the full signals, and evaluated the effect sizes of range across all acoustic measurements, as well as the independent effects of habitat and range on these measurements.  Some of the code in this script may need to be updated in order to reproduce results with more recent versions of the packages used.
+
+```{r echo = TRUE, eval = TRUE, message = FALSE}
+
+rm(list = ls())
+
+# load plyr before dplyr to avoid masking of certain functions
+library(plyr)
+
+X <- c("warbleR", "ggplot2", "tidyverse", "pbapply", "dplyr", "data.table", "pracma", "egg", "gridExtra", "facetscales", "grDevices", "ggplotify", "grid", "gtable", "MASS", "rstatix", "orddom")
+
+invisible(lapply(X, library, character.only = TRUE))
+
+path <- "/media/gsvidaurre/MYIOPSITTA/R/VocalLearning_PostInvasion/Data"
+gpath <- "/home/gsvidaurre/Desktop/MANUSCRIPTS/SimplerSignatures_PostInvasion/FIGURES"
+seed <- 401
+cores <- parallel::detectCores() - 2
+
+# Call R code to make raincloud plots, downloaded from https://github.com/RainCloudPlots/RainCloudPlots
+# Loading these scripts will install packages if these are not already on your machine
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/R_rainclouds.R")
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/summarySE.R")
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/simulateData.R")
+
+```
+
+Read in extended selection table (EST). Throughout this script, you can reproduce analyses by reading in the file "nat_inv_indiv_site_seltbl.csv", which is a selection table made available on figshare that contains metadata needed here. Measurements needed to reproduce analyses here have also been provided on figshare.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est <- readRDS(file.path(path, "nat_inv_indiv_site_EST.RDS"))
+# glimpse(nat_inv_est)
+
+```
+
+Decent number of samples over time. We can assess change over time at two scales, either the city or sites within cities sampled over time. New Orleans can be assessed only at the city scale, Austin can be assessed at specific sites over time.
+```{r echo = TRUE, eval = TRUE}
+
+# Which sites per city were sampled in each year (larger dataset of more geographic spread only)
+nat_inv_est %>%
+  filter(social_scale == "Site") %>%
+  filter(!is.na(invasive_city)) %>%
+  filter(invasive_city %in% c("Austin", "New Orleans")) %>%
+  group_by(invasive_city, year) %>%
+  dplyr::summarise(
+    uniq_sites = paste(unique(site), collapse = "; ")
+  )
+
+```
+
+Which invasive range site-years were sampled over time?
+```{r echo = TRUE, eval = TRUE}
+
+# Get site-years in Austin sampled over time, and New Orleans sites over years (larger dataset of more geographic spread only)
+austin <- nat_inv_est %>%
+  filter(social_scale == "Site") %>%
+  filter(invasive_city == "Austin") %>%
+  group_by(invasive_city, site) %>%
+  dplyr::summarise(
+    n_years = n_distinct(year)
+  ) %>%
+  filter(n_years > 1) %>%
+  pull(site)
+
+new_orleans <- nat_inv_est %>%
+  filter(social_scale == "Site") %>%
+  filter(invasive_city == "New Orleans") %>%
+  pull(site) %>%
+  unique()
+
+temporal_inv_sites <- c(austin, new_orleans)
+temporal_inv_sites
+
+```
+
+# Repeatedly sampled individuals
+
+We included calls of repeatedly sampled individuals per range in frequency tracing, as this allowed us to ask whether frequency modulation patterns account for the high individual information content in calls (next script with Beecher's statistic).
+
+Randomly sampled 5 calls per known repeatedly sampled individual per range, and took all calls if less than 5 total for any bird.
+```{r echo = TRUE, eval = FALSE}
+
+# Random sampling for the repeatedly sampled individuals (5 calls, or the total if less, per bird)
+
+# Get birds with less than 5 calls
+ids_few_calls <- nat_inv_est %>%
+  filter(social_scale == "Individual") %>%
+  # Drop site-years with less than 4 calls
+  group_by(Bird_ID) %>%
+  dplyr::summarise(
+    n_calls = length(sound.files)
+  ) %>%
+  # For now, drop birds with 5 calls or less, these will be excluded from random sampling and added back later
+  group_by(Bird_ID) %>%
+  filter(n_calls <= 5) %>%
+  pull(Bird_ID)
+
+set.seed(seed)
+
+freq_mod_indiv_df <- nat_inv_est %>%
+  filter(social_scale == "Individual") %>%
+  # For now, drop birds with 5 calls or less, these will be excluded from random sampling and added back later
+  filter(!Bird_ID %in% ids_few_calls) %>%
+  group_by(Bird_ID) %>%
+  nest() %>%
+  ungroup() %>%
+  # Randomly sample 5 calls 
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, 5, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls) %>%
+  # Add back birds with 5 calls or less
+  bind_rows(
+    nat_inv_est %>%
+    filter(social_scale == "Individual") %>%
+    filter(Bird_ID %in% ids_few_calls)
+  ) %>%
+  droplevels()
+
+glimpse(freq_mod_indiv_df) 
+
+# Checking, 17 individuals total (8 native, 9 invasive), 5 calls each or the total if less than 5, looks good
+freq_mod_indiv_df %>%
+  group_by(Bird_ID) %>%
+  dplyr::summarise(
+  n_calls = length(sound.files)
+  )
+
+# Includes calls from individual sampled at site BART in 2011 (INV-UM1)
+freq_mod_indiv_df %>%
+  group_by(site, Bird_ID) %>%
+  dplyr::summarise(
+  n_calls = length(sound.files)
+  )
+
+```
+
+# Dataset of broader geographic spread
+
+## Comparison between ranges
+
+Performed random sampling of calls from the dataset of broader geographic spread for the comparison between ranges and the temporal comparison in the invasive range. Here we relied on all calls in the full dataset (did not remove calls with the "site_scale" suffix).
+```{r echo = TRUE, eval = FALSE}
+
+# Random sampling for the spatial question (40 native, 40 invasive calls over 10 sites in each range)
+set.seed(seed)
+
+freq_mod_spatial_df <- nat_inv_est %>%
+  filter(social_scale == "Site") %>%
+  # Drop site-years with less than 4 calls
+  group_by(site_year) %>%
+  dplyr::summarise(
+    n_calls = length(sound.files)
+  ) %>%
+  filter(n_calls >= 4) %>%
+  ungroup() %>%
+  dplyr::select(-c(n_calls)) %>%
+  # Join back with the EST to sample site-years
+  inner_join(
+    nat_inv_est %>%
+    filter(social_scale == "Site"),
+    by = "site_year"
+  ) %>%
+  # Make a data frame in which each row is a site-year, for random sampling below
+  group_by(range, site_year) %>%
+  dplyr::summarise(
+    n_calls = length(sound.files)
+  ) %>%
+  ungroup() %>%
+  # Group by range for random sampling 
+  group_by(range) %>%
+  nest() %>%
+  ungroup() %>%
+  # Randomly sample 10 native and 10 invasive range site-years
+  dplyr::mutate(
+    rsamp_sites = purrr::map2(data, 10, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_sites) %>%
+  # Join back with the EST to sample calls per site-year
+  inner_join(
+    nat_inv_est %>%
+    filter(social_scale == "Site"),
+    by = c("range", "site_year")
+  ) %>% 
+  group_by(site_year) %>%
+  nest() %>%
+  ungroup() %>%
+  # Randomly sample 4 calls per site-year
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, 4, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls)
+
+glimpse(freq_mod_spatial_df) 
+
+# Checking, 4 calls per site and 20 sites total, looks good
+# Does not include BART 2011, good
+freq_mod_spatial_df %>%
+  group_by(range, site_year) %>%
+  dplyr::summarise(
+  n_calls = length(sound.files)
+  )
+
+```
+
+## Comparison over time (invasive range)
+
+```{r echo = TRUE, eval = FALSE}
+
+# Random sampling for the temporal question: Austin sites sampled over time, and New Orleans sites, 5 calls per site-year
+set.seed(seed)
+
+freq_mod_temporal_df <- nat_inv_est %>%
+  filter(social_scale == "Site") %>%
+  # Filter by the Austin sites sampled over time, and New Orleans sites
+  filter(site %in% temporal_inv_sites | invasive_city == "New Orleans") %>%
+  group_by(site_year) %>%
+  dplyr::summarise(
+    n_calls = length(sound.files)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(-c(n_calls)) %>%
+  # Join back with the EST to sample calls
+  inner_join(
+    nat_inv_est %>%
+    filter(social_scale == "Site") %>%
+    # Filter by the Austin sites sampled over time, and New Orleans sites
+    filter(site %in% temporal_inv_sites | invasive_city == "New Orleans"),
+    by = "site_year"
+  ) %>%
+  # Group by site_year for random sampling 
+  group_by(site_year) %>%
+  nest() %>%
+  ungroup() %>%
+  # Randomly sample 5 calls per site-year
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, 5, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls)
+
+glimpse(freq_mod_temporal_df) 
+
+# Checking, 15 sites total, 5 calls each, looks good
+# Does not include BART 2011, good
+freq_mod_temporal_df %>%
+  group_by(invasive_city, site_year) %>%
+  dplyr::summarise(
+    n_calls = length(sound.files)
+  )
+
+```
+
+155 calls, 149 total unique calls for the frequency modulation analysis of calls from the dataset of broader geographic sprea. Then 84 calls for repeatedly sampled individuals, for 233 unique calls total. Valeria and I ended up dividing the frequency tracing workload.
+
+Combine these calls into a single EST and write out to share with Valeria.
+```{r echo = TRUE, eval = FALSE}
+
+freq_mod_df <- freq_mod_spatial_df %>%
+  mutate(
+    question = "spatial"
+  ) %>%
+  bind_rows(freq_mod_temporal_df %>%
+    mutate(
+      question = "temporal"
+    )
+  ) %>%
+  bind_rows(freq_mod_indiv_df %>%
+    mutate(
+      question = "indiv_scale"
+    )
+  )
+glimpse(freq_mod_df)
+
+# Save this data frame as a record of the calls to be used for each question/comparison (has duplicates)
+saveRDS(freq_mod_df, file.path(path, "freq_mod_df.RDS"))
+
+freq_mod_df <- readRDS(file.path(path, "freq_mod_df.RDS"))
+glimpse(freq_mod_df)
+
+# Save as a .csv as well for sharing data
+# write.csv(freq_mod_df %>%
+# dplyr::select(-c(n_calls)),
+# file.path(path, "freq_mod_df.csv"), row.names = FALSE)
+
+# Get calls in this data frame
+calls <- freq_mod_df %>%
+  pull(sound.files) %>%
+  as.character()
+head(calls)
+
+# Actually 233 unique calls
+length(calls)
+length(unique(calls))
+
+# Which calls are duplicated? Duplicates shared between the spatial and temporal comparisons
+freq_mod_df %>%
+  filter(duplicated(sound.files)) %>%
+  View()
+
+# Remove duplicates to make an EST for frequency tracing
+freq_mod_df2 <- freq_mod_df %>%
+  filter(!duplicated(sound.files)) %>%
+  droplevels()
+glimpse(freq_mod_df2)
+
+# Randomly sample half of each set of calls per question, then VP will do tailoring for half and I will do the other half
+set.seed(seed)
+
+freq_mod_df_VP <- freq_mod_df2 %>%
+  group_by(question) %>%
+  nest() %>%
+  ungroup() %>%
+  # Create a vector with half of calls per comparison, to be used for random sampling
+  # group_by(question) %>%
+  inner_join(
+    freq_mod_df2 %>%
+    group_by(question) %>%
+    dplyr::summarise(
+      total_calls = length(sound.files)
+    ) %>%
+    dplyr::mutate(
+      n = round(total_calls/2)
+    ) %>% 
+      ungroup() %>%
+      dplyr::select(-total_calls),
+    by = "question"
+  ) %>%
+  # Randomly half of the calls used per question/comparison
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, n, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls) %>%
+  droplevels() %>%
+  dplyr::select(-c(n)) %>%
+  dplyr::select(all_of(names(freq_mod_df2)[-grep("question", names(freq_mod_df2))]), "question")
+  
+freq_mod_df_GSV <- freq_mod_df2 %>%
+  filter(!sound.files %in% freq_mod_df_VP$sound.files) %>%
+  droplevels()
+
+glimpse(freq_mod_df_VP)
+glimpse(freq_mod_df_GSV)
+
+# Filter the overall EST by the calls in each data frame
+sub_est_VP <- nat_inv_est[grep(paste(paste("^", freq_mod_df_VP$sound.files, "$", sep = ""), collapse = "|"), nat_inv_est$sound.files), ]
+
+sub_est_GSV <- nat_inv_est[grep(paste(paste("^", freq_mod_df_GSV$sound.files, "$", sep = ""), collapse = "|"), nat_inv_est$sound.files), ]
+
+# Restore the EST class of each data frame above
+freq_mod_est_VP <- fix_extended_selection_table(freq_mod_df_VP, sub_est_VP)
+glimpse(freq_mod_est_VP)
+class(freq_mod_est_VP)
+length(attr(freq_mod_est_VP, "wave.objects"))
+
+freq_mod_est_GSV <- fix_extended_selection_table(freq_mod_df_GSV, sub_est_GSV)
+glimpse(freq_mod_est_GSV)
+class(freq_mod_est_GSV)
+length(attr(freq_mod_est_GSV, "wave.objects"))
+
+# Write out the EST
+saveRDS(freq_mod_est_VP, file.path(path, "freq_mod_est_VP.RDS"))
+saveRDS(freq_mod_est_GSV, file.path(path, "freq_mod_est_GSV.RDS"))
+
+```
+
+# Second harmonic frequency tracing
+
+VP and GSV performed manual tailoring of frequency measurements to trace the 2nd harmonic visible in each call. First, we measured the fundamental frequency over 100 timepoints per call, which yielded fundamental frequency estimates that jumped around among harmonics. These frequency contours were then manually tailored below.
+```{r echo = TRUE, eval = FALSE}
+
+# VP call set
+freq_mod_est_VP <- readRDS(file.path(path, "freq_mod_est_VP.RDS"))
+glimpse(freq_mod_est_VP)
+
+ff_trace_VP <- ffts(freq_mod_est_VP, wl = 378, length.out = 100, wn = "hanning", ovlp = 90, bp = c(0.5, 9), threshold = 15, img = FALSE, parallel = cores, path = path, img.suffix = "ffts", pb = TRUE, clip.edges = TRUE, leglab = "ffts", ff.method = "tuneR", flim = c(0.5, 9))
+glimpse(ff_trace_VP)
+
+write.csv(ff_trace_VP, file.path(path, "ff_trace_VP.csv"))
+
+# GSV call set
+freq_mod_est_GSV <- readRDS(file.path(path, "freq_mod_est_GSV.RDS"))
+glimpse(freq_mod_est_GSV)
+
+ff_trace_GSV <- ffts(freq_mod_est_GSV, wl = 378, length.out = 100, wn = "hanning", ovlp = 90, bp = c(0.5, 9), threshold = 15, img = FALSE, parallel = cores, path = path, img.suffix = "ffts", pb = TRUE, clip.edges = TRUE, leglab = "ffts", ff.method = "tuneR", flim = c(0.5, 9))
+glimpse(ff_trace_GSV)
+
+write.csv(ff_trace_GSV, file.path(path, "ff_trace_GSV.csv"))
+
+```
+
+We used the following code to manually tailor fundamental frequency curves to trace the second harmonic per call. VP and GSV performed this on separate machines, here showing just the code for GSV call set.
+```{r echo = TRUE, eval = FALSE}
+
+ff_trace <- read.csv(file.path(path, "ff_trace_GSV.csv"))
+glimpse(ff_trace)
+
+seltailor(X = freq_mod_est_GSV, ts.df = ff_trace, wl = 378, flim = c(0.5, 9), mar = 0.05, osci = TRUE, ovlp = 90, auto.contour = TRUE, width = 15, height = 8, path = path)
+
+```
+
+When done with manual tailoring, we combined the .csvs generated by seltailor with the ESTs to be used for the frequency modulation questions. One observer (GSV) performed a final check of the tailored frequency traces.
+```{r echo = TRUE, eval = FALSE}
+
+freq_mod_est_VP <- readRDS(file.path(path, "freq_mod_est_VP.RDS"))
+glimpse(freq_mod_est_VP)
+
+freq_mod_est_GSV <- readRDS(file.path(path, "freq_mod_est_GSV.RDS"))
+glimpse(freq_mod_est_GSV)
+
+freq_trace_VP <- read.csv(file.path(path, "seltailor_output_freq_VP.csv"))
+glimpse(freq_trace_VP)
+
+freq_trace_GSV <- read.csv(file.path(path, "seltailor_output_freq_GSV.csv"))
+glimpse(freq_trace_GSV)
+
+# Join the frequency traces with the respective ESTs
+freq_mod_est_VP2 <- freq_mod_est_VP %>%
+  inner_join(
+    freq_trace_VP %>%
+      dplyr::select(c(names(freq_trace_VP)[grep("sound.files|ffreq", names(freq_trace_VP))])),
+    by = "sound.files"
+  ) 
+glimpse(freq_mod_est_VP2)
+
+freq_mod_est_GSV2 <- freq_mod_est_GSV %>%
+  inner_join(
+    freq_trace_GSV %>%
+      dplyr::select(c(names(freq_trace_GSV)[grep("sound.files|ffreq", names(freq_trace_GSV))])),
+    by = "sound.files"
+  ) 
+glimpse(freq_mod_est_GSV2)
+
+# Restore the EST class to each EST
+freq_mod_est_VP2 <- fix_extended_selection_table(freq_mod_est_VP2, freq_mod_est_VP)
+class(freq_mod_est_VP2)
+length(attr(freq_mod_est_VP2, "wave.objects"))
+
+freq_mod_est_GSV2 <- fix_extended_selection_table(freq_mod_est_GSV2, freq_mod_est_GSV)
+class(freq_mod_est_GSV2)
+length(attr(freq_mod_est_GSV2, "wave.objects"))
+
+# Join ESTs
+freq_mod_est <- rbind(freq_mod_est_VP2, freq_mod_est_GSV2)
+class(freq_mod_est)
+length(attr(freq_mod_est, "wave.objects"))
+glimpse(freq_mod_est)
+
+ts.df <- freq_mod_est %>%
+  dplyr::select(names(freq_mod_est)[grep("sound.files|selec|ffreq", names(freq_mod_est))])
+# glimpse(ts.df)
+
+# Run seltailor one more time to check traces and modify any as needed
+seltailor(X = freq_mod_est[, -grep("ffreq", names(freq_mod_est))], ts.df = ts.df, wl = 378, flim = c(0.5, 9), mar = 0.05, osci = TRUE, ovlp = 90, auto.contour = TRUE, width = 15, height = 8, path = path)
+
+```
+
+Fixed a good number of traces. Read these back in and added back to the combined EST for the frequency modulation analysis.
+```{r echo = TRUE, eval = FALSE}
+
+st <- read.csv(file.path(path, "seltailor_output_2ndharm_final_check.csv"))
+glimpse(st)
+
+freq_mod_est2 <- freq_mod_est %>%
+  dplyr::select(-c(names(freq_mod_est)[grep("ffreq", names(freq_mod_est))])) %>%
+  inner_join(
+    st %>%
+      dplyr::select(names(st)[grep("sound.files|ffreq", names(st))]),
+    by = "sound.files"
+  )
+
+# Restore EST class
+freq_mod_est2 <- fix_extended_selection_table(freq_mod_est2, freq_mod_est)
+class(freq_mod_est2)
+length(attr(freq_mod_est2, "wave.objects"))
+
+```
+
+## Visual validation
+
+Make spectrograms that contain the manually traced 2nd harmonic.
+```{r echo = TRUE, eval = FALSE}
+
+ts.df <- freq_mod_est2 %>%
+  dplyr::select(names(freq_mod_est2)[grep("sound.files|selec|ffreq", names(freq_mod_est2))]) %>%
+  as.data.frame()
+# glimpse(ts.df)
+class(ts.df)
+  
+trackfreqs(X = freq_mod_est2, wn = "hanning", wl = 378, collev = seq(-53, 0, 1), flim = c(0.5, 9), ovlp = 90, line = FALSE, mar = 0.005, res = 200, parallel = cores, path = gpath, it = "jpeg", custom.contour = ts.df, pch = 19, col = "firebrick")
+
+```
+
+The frequency traces look great, no more tailoring needed. Note that while GSV and VP split the manual tracing work, GSV did the final round of checking to make ensure consistency in frequency tracing between observers. See the example image file below.
+
+### AM3.1
+
+![Second harmonic contour](/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/2017_09_13_QUEB_1432_2.WAV-1-trackfreqs.jpeg)
+  
+Saved the EST with the final tailored 2nd harmonic traces.
+```{r echo = TRUE, eval = FALSE}
+  
+freq_mod_est3 <- freq_mod_est2 %>%
+  dplyr::select(-c(n_calls)) 
+
+saveRDS(freq_mod_est3, file.path(path, "freq_mod_est_m2h.RDS"))
+
+# Save as a .csv as well for sharing data
+write.csv(freq_mod_est3, file.path(path, "freq_mod_est_m2h.csv"), row.names = FALSE)
+  
+```
+
+# Frequency modulation measurements
+
+Read in the EST (a unique sound file per row) and the data frame with calls allocated for different analyses (sound files per row, with 6 shared across intended spatial and temporal comparisons as described above).
+```{r echo = TRUE, eval = TRUE}
+  
+# The EST with the manually tailored 2nd harmonic traces
+freq_mod_est <- readRDS(file.path(path, "freq_mod_est_m2h.RDS"))
+# freq_mod_est <- read.csv(file.path(path, "freq_mod_est_m2h.csv"))
+# glimpse(freq_mod_est)
+
+# Read in the data frame with used for each question/comparison (some calls used for both spatial and temporal question, only 6 total)
+freq_modQ_df <- readRDS(file.path(path, "freq_mod_df.RDS"))
+# freq_modQ_df <- read.csv(file.path(path, "freq_mod_df.csv"))
+# glimpse(freq_modQ_df)
+
+freq_modQ_df %>%
+  group_by(question) %>%
+  dplyr::summarise(n = length(sound.files))
+
+# 4 calls each from native range urban sites GOLF and FAGR 
+freq_modQ_df %>%
+  filter(range == "Native") %>%
+  group_by(site) %>%
+  dplyr::summarise(n_calls = length(sound.files))
+
+```
+
+## Initial peak searching routine
+
+Randomly select 5 calls per range to groundtruth a peak searching method. First, make visuals of each call, then manually count peaks.
+```{r echo = TRUE, eval = FALSE}
+
+freq_mod_est2 <- freq_mod_est %>%
+  as_tibble()
+
+# Randomly select 5 site-scale calls per range
+set.seed(seed)
+calls <- freq_mod_est2 %>%
+  filter(social_scale == "Site") %>%
+  group_by(range) %>%
+  nest() %>%
+  ungroup() %>%
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, 5, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls) %>% 
+  pull(sound.files) %>%
+  as.character()
+calls
+
+tmp_df <- freq_mod_est2 %>%
+  filter(sound.files %in% calls) %>%
+  droplevels()
+
+n_tot <- 100 # the number of timepoints per frequency trace
+n_rem <- 5 # remove 5 points at the start and end of each call, for 90 frequency measurements total across each call
+# the number of timepoints per frequency trace, minus 5 on either end
+n <- n_tot - (n_rem*2)
+n
+
+# Make visuals of the frequency traces of these calls to count peaks
+dev.off()
+invisible(pblapply(1:nrow(tmp_df), function(i){
+  
+  # Get the frequency trace for the given call
+  tmp <- tmp_df[i, ]
+  # glimpse(tmp)
+    
+  # Drop 5 points on either end
+  tmp <- tmp[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(tmp))]
+  # glimpse(tmp)
+    
+  # Get the frequency trace as a vector
+  ftrace <- as.vector(t(tmp[, grep("ffreq", names(tmp))]))
+
+   jpeg(file.path(gpath, paste(tmp_df$sound.files[i], "count_peaks.jpeg", sep = "-")), units = "in", width = 5, height = 4, res = 200)
+  plot(ftrace)
+  lines(ftrace, col = "red")
+  dev.off()
+  
+}))
+
+tmp_df$sound.files
+
+# Sound file                              # "Large" peaks  # Troughs following peaks
+# [1] "2011_02_15_PLEA_WRIG1012_3.WAV"    # 4             # 3 
+#  [2] "2011_02_18_LAKE_WRIG1039_10.WAV"    # 5           # 5
+#  [3] "SBD_Austin.1002.0180_resamp.WAV"    # 5           # 3
+#  [4] "SBD_NewOrleans.1006.0493_resamp.WAV" # 5          # 4
+#  [5] "2017_05_21_PLVE_1005_6.WAV"       # 8             # 7
+#  [6] "2017_10_25_PIED_1561_2.WAV"       # 7             # 6
+#  [7] "2017_09_13_ELTE_1405_3.WAV"     # 5               # 5
+#  [8] "2017_09_03_INBR_1269_3.WAV"       # 6             # 5
+#  [9] "2017_11_20_GOLF_1644_1.WAV"       #  6            # 5
+# [10] "2011_02_15_ELEM_WRIG1013_4.WAV" # 4               # 3
+
+# Add these vaues to the temporary data frame
+tmp_df$mnl_pks <- c(4, 5, 5, 5, 8, 7, 5, 6, 6, 4)
+tmp_df$mnl_trghs <- c(3, 5, 3, 4, 7, 6, 5, 5, 5, 3)
+
+```
+
+Find peaks across these calls using a general peak search method. These peaks will be used as a rough estimate of peak size, to impose a threshold on minimum peak size later on the magnitude of peaks with respect to local points. Use the peak searching code to also identify troughs, by inverting the frequency trace.
+```{r echo = TRUE, eval = FALSE}
+
+n_tot <- 100 # the number of timepoints per frequency trace
+n_rem <- 5 # remove 5 points at the start and end of each call, for 90 frequency measurements total across each call
+# the number of timepoints per frequency trace, minus 5 on either end
+n <- n_tot - (n_rem*2)
+n
+
+nups <- 2
+ndowns <- 0
+minpeakheight <- 1 # 1 kHz as min peak height
+zero <- "0"
+
+pk_hght_df <- rbindlist(pblapply(1:nrow(tmp_df), function(i){
+  
+  # Get the frequency trace for the given call
+  tmp <- tmp_df[i, ]
+  # glimpse(tmp)
+    
+  # Drop 5 points on either end
+  tmp <- tmp[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(tmp))]
+  # glimpse(tmp)
+    
+  # Get the frequency trace as a vector
+  ftrace <- as.vector(t(tmp[, grep("ffreq", names(tmp))]))
+
+  pks <- findpeaks(ftrace, nups = nups, ndowns = ndowns, zero = zero, minpeakheight = minpeakheight)
+  
+  return(data.frame(sound.files = tmp_df$sound.files[i], range = tmp_df$range[i], peak_number = seq(1, nrow(pks), 1), peak_height = pks[, 1], peak_max_index = pks[, 2]))
+  
+}))
+
+glimpse(pk_hght_df)
+max(pk_hght_df$peak_height)
+
+```
+
+Next, I customized this routine again to locate peaks that picks up large peaks but not gradual increases. Used the dataset of 10 randomly selected calls above for ground truthing, with spline-smoothing, and determine the degree of smoothing that yields results closest to visual inspection of peaks, as well as good detection of troughs (inverted peaks). Then moved on to identifying peaks across all calls with frequency traces for the spatial and temporal questions.
+```{r echo = TRUE, eval = FALSE}
+
+n_tot <- 100 # the number of timepoints per frequency trace
+n_rem <- 5 # remove 5 points at the start and end of each call, for 90 frequency measurements total across each call
+# the number of timepoints per frequency trace, minus 5 on either end
+n <- n_tot - (n_rem*2)
+n
+
+nups <- 2
+ndowns <- 0
+minpeakheight <- 1 # 1 kHz as min peak height
+zero <- "0"
+
+# Degrees of freedom for smoothing
+dfs <- seq(25, 125, 25)
+dfs
+
+# Impose a threshold for minimum peak rise with respect to local neigboring points before it
+# This is 1/100th of the maximum peak height determined above with this subset of calls
+thresh <- round(max(pk_hght_df$peak_height)/100, 1)
+thresh # 0.1
+
+# Iterate over calls and degrees of freedom for smoothing
+# i <- 1
+# j <- 1
+pks_gt <- rbindlist(pblapply(1:nrow(tmp_df), function(i){
+  
+  tmp2 <- rbindlist(lapply(1:length(dfs), function(j){
+
+    # Get the frequency trace for the given call
+    tmp <- tmp_df[i, ]
+    # glimpse(tmp)
+    
+    # Drop 5 points on either end
+    tmp <- tmp[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(tmp))]
+    # glimpse(tmp)
+    
+    # Get the frequency trace as a vector
+    ftrace <- as.vector(t(tmp[, grep("ffreq", names(tmp))]))
+    # ftrace
+  
+    # Fit a spline and smooth it, to remove small local maxima arising from manual tracing
+    # Interpolate a total of n equally spaced values (here 5 times the length of the trace), take the mean of tied x-values
+    splf <- spline(ftrace, n = 5*length(ftrace), method = "fmm")
+    # str(splf)
+    # plot(splf)
+    # plot(ftrace)
+  
+    # Perform spline smoothing without weighting. Here, df represents the degree of smoothing. Higher values of df lead to less smoothing
+    splf_smooth <- smooth.spline(splf, df = dfs[j])
+    # str(splf_smooth)
+    # plot(splf_smooth)
+    # plot(splf)
+  
+    # Output is a matrix, each row is a peak found, first column is the height, second column is the index of the vector where the maximum is reached, then the third and fourth are the indices where the peak starts and ends
+    pks <- findpeaks(splf_smooth$y, nups = nups, ndowns = ndowns, zero = zero, minpeakheight = minpeakheight)
+    # pks
+    # str(pks)
+    
+    # Impose additional filters on the peaks: 
+    # 1) Remove "peaks" identified within the last 2 points of the trace
+    # 2) Remove peaks with maximum values that are less than 0.1kHz than the frequency value 5 points before (if the given peak 5 points or less from the beginning, remove peaks that are less than the threshold than the point before)
+    # 3) Remove peaks identified close together (less than 5 points apart) that are probably points on the same wide peak
+  
+    rem1 <- which(pks[, 2] > (length(splf_smooth$x) - 2)) 
+    # rem1
+    
+    if(length(rem1) > 0){
+      pks <- pks[-rem1, ]
+    }
+  
+    # z <- 1
+    rem2 <- unlist(lapply(1:nrow(pks), function(z){
+
+      # cat(paste("z = ", z, "\n"))
+
+      indx <- pks[z, 2]
+      idiff <- indx - 10
+
+      if(!idiff < 0 & idiff != 0){
+        rel_ht <- pks[z, 1] - splf_smooth$y[idiff]
+        if(rel_ht < thresh){
+          return(z)
+        }
+      } else {
+        idiff <- indx - 1
+        rel_ht <- pks[z, 1] - splf_smooth$y[idiff]
+        if(rel_ht < thresh){
+          return(z)
+        }
+      }
+
+    }))
+    # rem2
+    # pks
+    
+    # Remove these indices from the peaks
+    if(length(rem2) > 0){
+      pks <- pks[-rem2, ]
+    }
+  
+    # If more than one peak remains, find those that are too close together (5 points or less)
+    if(is.matrix(pks) & nrow(pks) > 0){
+      rem3 <- which(diff(pks[, 2]) < 5)
+      if(length(rem3) > 0){
+        pks <- pks[-rem3, ]
+      }
+    }
+  
+    # Return the number of peaks
+    if(is.matrix(pks)){
+      num_peaks = nrow(pks)
+    } else {
+      num_peaks = length(pks)
+    }
+
+    # Identify troughs by applying the findpeaks code to the inverted frequency trace
+    # Removed the minpeakheight limitation here
+    trghs <- findpeaks(-splf_smooth$y, nups = nups, ndowns = ndowns, zero = zero)
+    # trghs
+    # str(trghs)
+    
+    # Filter the troughs to retain those following the peaks identified above
+    # In other words, assign each trough to a peak, and drop troughs without matches
+    # Do the peak-trough assignments by finding the closest trough following each peak
+    
+    # If more than one peak was identified for the given call
+    if(is.matrix(pks) & nrow(pks) > 0){
+      
+      trough_df <- rbindlist(lapply(1:nrow(pks), function(z){
+        # Get the difference in indices between the given peak and all troughs
+        diff_inds <- pks[z, 2] - trghs[, 2] 
+        # Find the negative differences (trough following a peak), and the max of these
+        wh <- which(diff_inds < 0 & diff_inds == max(diff_inds[diff_inds < 0]))
+
+        return(data.frame(peak_indx = pks[z, 2], trgh_indx = trghs[wh, 2]))
+      }))
+    
+      # If only a single peak was identified per call  
+      } else if(!is.matrix(pks) & nrow(pks) == 0){
+
+        # Get the difference in indices between the given peak and all troughs
+        diff_inds <- pks[2] - trghs[, 2] 
+        # Find the negative differences (trough following a peak), and the max of these
+        wh <- which(diff_inds < 0 & diff_inds == max(diff_inds[diff_inds < 0]))
+        
+        trough_df <- data.frame(peak_indx = pks[2], trgh_indx = trghs[wh, 2])
+        
+      }
+    
+    # Return the degree of smoothing and number of peaks
+    return(data.frame(sound.files = tmp_df$sound.files[i], range = tmp_df$range[i], num_peaks = nrow(pks), num_trghs = nrow(trough_df), mnl_num_peaks = tmp_df$mnl_pks[i], mnl_num_trghs = tmp_df$mnl_trghs[i], smooth_param = dfs[j]))
+  
+    }))
+  
+  return(tmp2)
+
+}))
+
+glimpse(pks_gt)
+# View(pks_gt)
+
+# Calculate the difference in peaks per call and smoothing parameter compared to the visually identified peaks and troughs, then find the sum of differences per smoothing parameter
+pks_gt %>%
+  dplyr::mutate(
+    numdiffp = abs(num_peaks - mnl_num_peaks),
+    numdifft = abs(num_trghs - mnl_num_trghs)
+  ) %>%
+  group_by(smooth_param) %>%
+  dplyr::summarise(
+    sumdiffp = sum(numdiffp),
+    sumdifft = sum(numdifft)
+  )
+
+# smooth_param (df in smooth.spline) of 50 had the least number of differences in peaks identified compared to visual inspection, and more troughs. More of the measurements below depend on better peak estimates, so decided to proceed with smoothing parameter of 50
+
+```
+
+## Final customized peak and trough routine
+
+Make the code above into a function, then checked out the peaks identified across the groundtruthing calls with this smoothing threshold. I improved the peak and trough searching in this function compared to the code above.
+```{r echo = TRUE, eval = FALSE}
+
+peak_locator <- function(X, n_tot, n_rem, degf, nups, ndowns, minpeakheight, zero, thresh, img, neighb, pkdist){
+  
+  tmp_df <- rbindlist(pblapply(1:nrow(X), function(i){
+    
+    # The number of timepoints per frequency trace, minus 5 on either end
+    n <- n_tot - (n_rem*2)
+ 
+    # Get the frequency trace for the given call
+    tmp <- X[i, ]
+    
+    # Drop 5 points on either end
+    tmp <- tmp[, -grep(paste(paste("^", paste("ffreq", c(seq(1, n_rem, 1), seq(n_tot - n_rem + 1, n_tot, 1)), sep = "."), "$", sep = ""), collapse = "|"), names(tmp))]
+    
+    # Get the frequency trace as a vector
+    ftrace <- as.vector(t(tmp[, grep("ffreq", names(tmp))]))
+  
+    # Fit a spline and smooth it, to remove small local maxima arising from manual tracing
+    # Interpolate a total of n equally spaced values (here 5 times the length of the trace), take the mean of tied x-values
+    splf <- spline(ftrace, n = 5*length(ftrace), method = "fmm")
+  
+    # Perform spline smoothing without weighting. Here, df represents the degree of smoothing. Higher values of df lead to less smoothing
+    splf_smooth <- smooth.spline(splf, df = degf)
+  
+    # Output is a matrix, each row is a peak found, first column is the height, second column is the index of the vector where the maximum is reached, then the third and fourth are the indices where the peak starts and ends
+    pks <- findpeaks(splf_smooth$y, nups = nups, ndowns = ndowns, zero = zero, minpeakheight = minpeakheight)
+    # pks
+    # str(pks)
+  
+    # Impose additional filters on the peaks: 
+    # 1) Remove "peaks" identified within the last 2 points of the trace
+    # 2) Remove peaks with maximum values that when compared to the frequency value of neighoring points before have a difference of less than the given threshold (if the given peak is the number of neighboring points or less from the beginning, compare to neighbors within half the distance of the index from the start point)
+    # 3) Remove peaks identified close together that are probably points on the same wide peak
+  
+    rem1 <- which(pks[, 2] > (length(splf_smooth$x) - 2)) 
+    
+    if(length(rem1) > 0){
+      pks <- pks[-rem1, ]
+    }
+  
+    rem2 <- unlist(lapply(1:nrow(pks), function(z){
+
+      indx <- pks[z, 2]
+      idiff <- indx - neighb
+
+      if(!idiff < 0 & idiff != 0){
+        rel_ht <- pks[z, 1] - splf_smooth$y[idiff]
+        if(rel_ht < thresh){
+          return(z)
+        }
+      } else {
+        idiff <- indx - (indx/2)
+        rel_ht <- pks[z, 1] - splf_smooth$y[idiff]
+        if(rel_ht < thresh){
+          return(z)
+        }
+      }
+
+    }))
+    
+    # Remove these indices from the peaks
+    if(length(rem2) > 0){
+      pks <- pks[-rem2, ]
+    }
+  
+    # If more than one peak remains, find those that are too close together
+    if(is.matrix(pks) & nrow(pks) > 0){
+      rem3 <- which(diff(pks[, 2]) < pkdist)
+      if(length(rem3) > 0){
+        pks <- pks[-rem3, ]
+      }
+    }
+    
+    # Identify troughs by applying the findpeaks code to the inverted frequency trace
+    # Removed the minpeakheight limitation here
+    trghs <- findpeaks(-splf_smooth$y, nups = nups, ndowns = ndowns, zero = zero)
+    
+    # Filter the troughs to retain those following the peaks identified above
+    # In other words, assign each trough to a peak, and drop troughs without matches
+    # Do the peak-trough assignments by finding the closest trough following each peak
+    
+    # If more than one peak was identified for the given call
+    if(is.matrix(pks) & nrow(pks) > 0){
+
+      trough_df <- rbindlist(lapply(1:nrow(pks), function(z){
+        
+        # Get the difference in indices between the given peak and all troughs
+        diff_inds <- pks[z, 2] - trghs[, 2] 
+        
+        # Find the negative differences (trough following a peak)
+        negs <- diff_inds[diff_inds < 0]
+        
+        # Check whether there are 2 troughs between this peak and the next
+        # If so, return the deepest trough, to account for tall peaks with shoulders that drop lower after the shoulder
+        if(z != nrow(pks) & z > 1){
+          
+          neigh_trghs <- which(trghs[, 2] >= pks[z, 2] & trghs[, 2] <= pks[z + 1, 2])
+          # If there are neighboring troughs prior to the next peak, and the first trough is not as deep as the following troughs, find which of the following troughs is the deepest
+          
+          if(length(neigh_trghs) > 1 & all(trghs[neigh_trghs[1], 1] < trghs[neigh_trghs[-1], 1]) & length(negs) > 0){
+            
+            wh <- which(diff_inds < 0 & seq(1, nrow(trghs), 1) %in% neigh_trghs & diff_inds == min(diff_inds[seq(1, nrow(trghs), 1) %in% neigh_trghs])) 
+          
+            # If there are neighboring troughs prior to the next peak, but the first trough is deeper than the following troughs, get this first trough
+          } else if(length(neigh_trghs) > 1 & all(trghs[neigh_trghs[1], 1] > trghs[neigh_trghs[-1], 1]) & length(negs) > 0){
+            
+            wh <- neigh_trghs[1]
+            
+          # Else if there's just a single trough identified between peaks 
+          } else if(length(neigh_trghs) == 1 & length(negs) > 0){
+            
+            wh <- which(diff_inds < 0 & diff_inds == max(negs, na.rm = TRUE)) 
+          
+          # Else if no neighboring trough is identified for the given peak
+          } else if(length(neigh_trghs) == 0){
+            
+            wh <- NULL
+          }
+          
+        # Else if on the first or last peak, just a single trough or none should be identified
+        } else if(z == nrow(pks) | z == 1 & length(negs) > 0){
+          
+          if(length(negs) > 0){
+            wh <- which(diff_inds < 0 & diff_inds == max(negs, na.rm = TRUE))
+          } else {
+            wh <- NULL
+          }
+           
+        }
+        
+        # Return a data frame with the slope of the frequency curve between the peak and its matching trough, unless the peak wasn't matched to a trough (e.g. a peak close to the end of a call)
+        if(length(wh) > 0){
+          
+          pt_slope <- (splf_smooth$y[trghs[wh, 2]] - splf_smooth$y[pks[z, 2]])/(splf_smooth$x[trghs[wh, 2]] - splf_smooth$x[pks[z, 2]])
+          
+          # Make sure to convert the trough heights back to positive values here
+          return(data.frame(peak_indx = pks[z, 2], trgh_indx = trghs[wh, 2], trgh_hght = -trghs[wh, 1], pt_slope = pt_slope))
+          
+        } else{
+          
+          return(data.frame(peak_indx = pks[z, 2], trgh_indx = NA, trgh_hght = NA, pt_slope = NA))
+        }
+        
+      }))
+    
+      # If only a single peak was identified per call  
+      } else if(!is.matrix(pks) & nrow(pks) == 0){
+
+        # Get the difference in indices between the given peak and all troughs
+        diff_inds <- pks[2] - trghs[, 2] 
+        
+        # Find the negative differences (trough following a peak), and the max of these if troughs were found
+        negs <- diff_inds[diff_inds < 0]
+        
+        if(length(negs) > 0){
+          wh <- which(diff_inds < 0 & diff_inds == max(negs, na.rm = TRUE)) 
+        } else {
+          wh <- NULL
+        }
+        # Return a data frame with the difference in height between the peak and its matching trough
+        if(length(wh) > 0){
+          
+          (splf_smooth$y[trghs[wh, 2]] - splf_smooth$y[pks[2]])/(splf_smooth$x[trghs[wh, 2]] - splf_smooth$x[pks[2]])
+          
+          return(data.frame(peak_indx = pks[2], trgh_indx = trghs[wh, 2], trgh_hght = -trghs[wh, 1], pt_slope = pt_slope))
+          
+        } else{
+          return(data.frame(peak_indx = pks[z, 2], trgh_indx = NA, trgh_hght = NA, pt_slope = NA))
+        }
+        
+      }
+    
+    # If img = TRUE, generate an image file with the peaks and troughs
+    if(img){
+      jpeg(file.path(gpath, paste(X$sound.files[i], "freq_peaks.jpeg", sep = "-")), units = "in", width = 5, height = 4, res = 200)
+      plot(splf_smooth$y)
+      points(x = pks[, 2], y = pks[, 1], pch = 4, cex = 2, col = "red")
+      points(x = trough_df$trgh_indx, y = trough_df$trgh_hght, pch = 4, cex = 2, col = "blue")
+      dev.off()
+    }
+  
+    # Return the peaks found per call, the rate of change, and the change in frequency between matched peaks and troughs
+    return(data.frame(
+      sound.files = X$sound.files[i], 
+      range = X$range[i], 
+      site = X$site[i], 
+      year = X$year[i], 
+      site_year = X$site_year[i], 
+      region = X$region[i],
+      dept_state = X$dept_state[i],
+      invasive_city = X$invasive_city[i], 
+      peak_number = seq(1, nrow(pks), 1), 
+      peak_height = pks[, 1], 
+      peak_max_index = pks[, 2], 
+      peak_start_index = pks[, 3], 
+      peak_end_index = pks[, 4], 
+      peak_trgh_slope = trough_df$pt_slope,
+      trgh_index = trough_df$trgh_indx
+      )
+    )
+
+  }))
+  
+  return(tmp_df)
+}
+
+# Used the resulting image files to visually assess how well this customized routine picks up large peaks and neighboring troughs
+peak_res <- peak_locator(X = tmp_df, n_tot = 100, n_rem = 5, nups = 2, ndowns = 0, minpeakheight = 1, zero = "0", degf = 50, thresh = 0.05, img = TRUE, neighb = 25, pkdist = 20)
+# glimpse(peak_res)
+
+```
+
+This peak locator function performed well in locating large frequency peaks, and some smaller ones for the reduced call dataset. Each peak was matched pretty well with a following trough. For some wider peaks, the trough comes somewhat late, but overall still looks great for final analysis.
+
+Next, checked peaks identified for all calls for which we performed frequency tracing. Here, I checked that all large visible peaks had been identified using the same parameters as for the subset of calls above. A handful of calls had one peak not identified, but these peaks were medium-sized and typically nested right in between larger peaks (more difficult to identify). Other calls had smaller peaks identified. Overall, the function picked up large modulation peaks per call, and results looked good to continue (see example image file below).
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+freq_mod_df <- freq_modQ_df %>%
+  inner_join(
+    freq_mod_est %>%
+      as.data.frame() %>%
+      dplyr::select(names(freq_mod_est)[grep("sound.files|ffreq", names(freq_mod_est))]),
+    by = "sound.files"
+  ) %>%
+  droplevels() %>%
+  # Remove duplicated sound files chosen for both spatial and temporal comparisons
+  filter(!duplicated(sound.files))
+# glimpse(freq_mod_df)
+nrow(freq_mod_df)
+
+```
+
+## Frequency modulation measurements
+
+```{r echo = TRUE, eval = FALSE}
+
+peaks_troughs_df <- peak_locator(X = freq_mod_df, n_tot = 100, n_rem = 5, nups = 2, ndowns = 0, minpeakheight = 1, zero = "0", degf = 50, thresh = 0.05, img = TRUE, neighb = 25, pkdist = 20)
+glimpse(peaks_troughs_df)
+
+# Save this data for use later as needed
+saveRDS(peaks_troughs_df, file.path(path, "peaks_troughs_df.RDS"))
+
+# Save as a .csv as well for sharing data
+write.csv(peaks_troughs_df, file.path(path, "peaks_troughs_df.csv"), row.names = FALSE)
+
+```
+
+### Visual validation
+
+The image files look great. Nearly every peak was assigned a trough. Some intermediate peaks close to larger peaks were picked up, and some more gradual increases were picked up as peaks, but overall, the function did a good job with identifying large, visible peaks and troughs across all calls for which we performed frequency tracing. In the image file below, peaks are shown in red and troughs in dark blue.
+
+### AM3.2
+
+![Spline-smoothed second harmonic frequency contour with peaks and troughs for 2017_09_13_QUEB_1432_2.WAV](/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion/Code/images/2017_09_13_QUEB_1432_2.WAV-freq_peaks.jpeg)
+
+I performed a final found of filtering using the frequency modulation measurements for the full dataset prior to parsing out calls chosen above for the spatial comparison between ranges. Here I removed very small peaks that would lead to overestimation of frequency modulation.
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+# The function returns one row per peak, with trough information per row
+# Dropping peaks below will therefore drop associated trough information
+peaks_trghs_df <- readRDS(file.path(path, "peaks_troughs_df.RDS"))
+# peaks_trghs_df <- read.csv(file.path(path, "peaks_troughs_df.csv"))
+glimpse(peaks_trghs_df)
+
+# How many peaks in this dataset weren't matched to troughs? 2
+length(which(is.na(peaks_trghs_df$peak_trgh_slope)))
+
+# Remove these for distribution calculations below
+peaks_trghs_df2 <- peaks_trghs_df %>%
+  filter(!is.na(peak_trgh_slope)) %>%
+  droplevels()
+
+# What is the distribution of peak - trough ranges? Can this be used to exclude smaller peaks?
+range(peaks_trghs_df2$peak_trgh_slope, na.rm = TRUE)
+# hist(peaks_trghs_df2$peak_trgh_slope, breaks = 50)
+
+# If we split these distances into 50 bins (yields similar results to 100 intervals), then discard the last two bins of slopes, which represent the smallest peaks
+levels(cut(peaks_trghs_df2$peak_trgh_slope, 50))
+
+# Add these bins back to the data frame, then drop peaks that fell into the first interval
+peaks_trghs_df2$peak_size_class <- cut(peaks_trghs_df2$peak_trgh_slope, 50, labels = FALSE)
+
+# Numbers of peaks by interval
+# 160 peaks will be dropped after excluding peaks in the last two bins
+table(peaks_trghs_df2$peak_size_class)
+
+# Exclude peaks in the first 2 bins
+peaks_trghs_df3 <- peaks_trghs_df2 %>%
+  dplyr::mutate(
+    peak_size_class = as.numeric(peak_size_class)
+  ) %>%
+  filter(peak_size_class < 49) %>%
+  droplevels() %>%
+  # Remove the peak_size_class column
+  dplyr::select(-c(peak_size_class)) %>%
+  # Add back the peaks that were not assigned to troughs
+  bind_rows(
+    peaks_trghs_df %>%
+    filter(is.na(peak_trgh_slope)) %>%
+    droplevels()
+  )
+
+# 1149 peaks remain, 160 were removed, looks great
+nrow(peaks_trghs_df3)
+nrow(peaks_trghs_df) - nrow(peaks_trghs_df3)
+
+```
+
+## Comparison between ranges
+
+Obtained frequency modulation measurements and a standard set of spectral acoustic measurements for the calls set aside for the spatial comparison between ranges.
+```{r echo = TRUE, eval = TRUE}
+
+calls <- freq_modQ_df %>%
+  filter(question == "spatial") %>%
+  pull(sound.files) %>%
+  as.character()
+
+length(calls)
+
+peaks_spat_df <- peaks_trghs_df3 %>%
+  filter(sound.files %in% calls) %>%
+  droplevels()
+# glimpse(peaks_spat_df)
+
+# 40 native range calls, 40 invasive range calls, each call represents a "unique" individual
+# 4 randomly sampled calls from 10 randomly sites per range
+peaks_spat_df %>%
+  group_by(range) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# How many years are represented in the invasive range? More calls from 2004, but some from each 2011 and 2019
+peaks_spat_df %>%
+  filter(range == "Invasive") %>%
+  group_by(year) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Native spatial areas represented?
+peaks_spat_df %>%
+  filter(range == "Native") %>%
+  group_by(region, dept_state) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Which native range sites? None of these had known repeatedly sampled individuals
+peaks_spat_df %>%
+  filter(range == "Native") %>%
+  group_by(site) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Invasive spatial areas represented?
+# More representation from Texas, as expected
+peaks_spat_df %>%
+  filter(range == "Invasive") %>%
+  group_by(region, dept_state) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Which inasvive range site-years? 
+# We recorded repeatedly sampled individuals at some of these sites
+# But calls from repeatedly sampled individuals used in the final dataset are not included here (see below)
+peaks_spat_df %>%
+  filter(range == "Invasive") %>%
+  group_by(site_year) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Were any calls from known repeatedly sampled individuals used in frequency tracing?
+# Yes, but these 2 calls are from birds that were not retained as repeatedly sampled individuals in the final dataset (not enough calls remained after pre-processing)
+unique(peaks_spat_df$sound.files[grep("site_scale", peaks_spat_df$sound.files)])
+
+```
+
+## Combine acoustic measurements
+
+Calculated frequency modulation measurements per call.
+```{r echo = TRUE, eval = TRUE}
+
+# Get the number of peaks per call
+num_peaks_df <- peaks_spat_df %>%
+  # Find the number of peaks per call
+  group_by(range, sound.files) %>%
+  dplyr::summarise(
+    num_peaks = length(peak_number)
+  ) %>%
+  ungroup() %>%
+  # Ensure levels of the range column are in the expected order
+  dplyr::mutate(
+    range = as.character(range),
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  dplyr::select(c(sound.files, num_peaks))
+
+glimpse(num_peaks_df)
+
+# Modulation rate per call
+modRate_df <- peaks_spat_df %>%
+  # Calculate duration per call
+  inner_join(
+    freq_mod_df %>%
+    dplyr::mutate(
+      duration = end - start
+    ) %>%
+      dplyr::select(sound.files, duration),
+    by = "sound.files"
+  ) %>%
+  # Calculate modulation rate value per call
+  group_by(range, sound.files, duration) %>%
+  dplyr::summarise(
+    num_peaks = length(peak_number)
+  ) %>%
+  ungroup() %>%
+  dplyr::mutate(
+    modulation_rate = (num_peaks/duration) # units for rate of change = peaks/second
+  ) %>%
+  # Ensure levels of the range column are in the expected order
+  dplyr::mutate(
+    range = as.character(range),
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  dplyr::select(c(sound.files, modulation_rate))
+
+glimpse(modRate_df)
+
+# Maximum peak - trough slope per call
+peakTroughSlope_df <- peaks_spat_df %>%
+  # Drop peaks that were not matched to troughs
+  filter(!is.na(peak_trgh_slope)) %>%
+  # Ensure levels of the range column are in the expected order
+  dplyr::mutate(
+    range = as.character(range),
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  # Get maximum (absolute) peak-trough range per call
+  group_by(range, sound.files) %>%
+  dplyr::summarise(
+    max_peak_trgh_slope = min(peak_trgh_slope)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(sound.files, max_peak_trgh_slope)
+
+glimpse(peakTroughSlope_df)
+
+```
+
+Combined these frequency modulation measurements with the 27 standard spectral acoustic measurements used in machine learning (see previous script, prior to filtering for collinearity). 
+```{r echo = TRUE, eval = TRUE}
+
+acoustic_measuremnts <- read.csv(file.path(path, "acoustic_parameters.csv")) %>%
+      dplyr::select(-c(selec))
+glimpse(acoustic_measuremnts)
+
+ameas_df <- acoustic_measuremnts %>%
+  # Add back the range column
+  inner_join(
+    nat_inv_est %>%
+      as_tibble() %>%
+      dplyr::select(range, sound.files),
+    by = "sound.files"
+  ) %>%
+  # Filter by calls used in the frequency modulation analysis
+  filter(sound.files %in% peaks_spat_df$sound.files) %>%
+  # Join with the frequency modulation measurements
+  full_join(
+    num_peaks_df,
+    by = "sound.files"
+  ) %>%
+  full_join(
+    modRate_df,
+    by = "sound.files"
+  ) %>%
+  full_join(
+    peakTroughSlope_df,
+    by = "sound.files"
+  ) 
+  
+glimpse(ameas_df)
+
+```
+
+Assess normality per acoustic measurement per range.
+```{r echo = TRUE, eval = TRUE}
+
+vars <- names(ameas_df)[-grep("^range$|^sound.files$", names(ameas_df))]
+
+# Shapiro-Wilks test to assess normality
+shap_df <- ameas_df %>%
+  dplyr::select(-c(sound.files)) %>%
+  dplyr::mutate(
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  dplyr::group_by(range) %>%
+  rstatix::shapiro_test(vars = vars)
+
+# More than 10 acoustic measurements violate the assumption of normality for at least one range
+shap_df %>%
+  filter(p <= 0.05) %>%
+  pull(variable) %>%
+  unique()
+
+```
+
+Assess homogeneity of variance per acoustic measurement between ranges.
+```{r echo = TRUE, eval = TRUE}
+
+vars <- names(ameas_df)[-grep("^range$|^sound.files$", names(ameas_df))]
+
+# Levene's test to assess homogeneity of variance
+lev_df <- ameas_df %>%
+  dplyr::select(-c(sound.files)) %>%
+  dplyr::mutate(
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^range$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  group_by(measurement) %>%
+  rstatix::levene_test(values ~ range)
+
+lev_df
+
+# Five acoustic measurements violate the assumption of equal variance between ranges
+lev_df %>%
+  filter(p <= 0.05) %>%
+  pull(measurement)
+
+```
+
+Calculated Cliff's delta as the effect size of range per acoustic measurement.
+```{r echo = TRUE, eval = FALSE}
+
+var_nms <- names(ameas_df)[-grep("^range$|^sound.files$", names(ameas_df))]
+var_nms
+
+# i <- 1
+eff_res_df <- rbindlist(pblapply(1:length(var_nms), function(i){
+  
+  tmp_df <- ameas_df %>%
+    dplyr::select(range, var_nms[i])
+  
+  nat <- tmp_df %>%
+    filter(range == "Native") %>%
+    pull(var_nms[i])
+  
+  inv <- tmp_df %>%
+    filter(range == "Invasive") %>%
+    pull(var_nms[i])
+  
+  # Get Cliff's delta for independent groups (all values of y compared to all values of x)
+  # orddom package v 3.1
+  cliff_delta <- dmes(nat, inv)$dc
+  
+  # Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study (Hess & Kromey 2004)
+  # Using 10000 bootstrap iterations
+  ci_res <- dmes.boot(nat, inv, theta.es = "dc", ci.meth = "BCA", B = 10000)
+  ci_res
+  
+  lower_95_CI <- ci_res$theta.bci.lo
+  upper_95_CI <- ci_res$theta.bci.up
+  
+  return(data.frame(
+    measurement = var_nms[i],
+    cliff_delta = cliff_delta,
+    lower_95_CI = lower_95_CI,
+    upper_95_CI = upper_95_CI
+  ))
+  
+}))
+
+eff_res_df
+
+write.csv(eff_res_df, file.path(path, "cliffs_delta_bootstrappedCIs.csv"), row.names = FALSE)
+
+```
+
+### Table A7 
+
+Effect sizes ordered by absolute magnitude. Add median and interquartile range per acoustic measurement per range.
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+eff_res_df <- read.csv(file.path(path, "cliffs_delta_bootstrappedCIs.csv"))
+glimpse(eff_res_df)
+
+# Make a table for appendix in order of largest absolute effect size
+eff_res_df %>%
+  dplyr::mutate(
+    effect_size = round(cliff_delta, 2),
+    lower_95_CI = round(lower_95_CI, 2),
+    upper_95_CI = round(upper_95_CI, 2),
+    `95_CI` = paste("(", lower_95_CI, ", ", upper_95_CI, ")", sep = "")
+  ) %>%
+  arrange(desc(abs(effect_size))) %>%
+  dplyr::select(measurement, effect_size, `95_CI`) %>%
+  left_join(
+    ameas_df %>%
+      dplyr::select(-c(sound.files)) %>%
+      dplyr::mutate(
+        range = factor(range, levels = c("Native", "Invasive"))
+      ) %>%
+      # Convert to long format
+      pivot_longer(
+        cols = names(.)[-grep("^range$|^sound.files$", names(.))],
+        names_to = "measurement",
+        values_to = "values"
+      ) %>%
+      group_by(measurement, range) %>%
+      dplyr::summarise(
+        median = round(median(values), 3),
+        IQR = round(IQR(values), 3)
+      ) %>%
+      # Convert to long format again
+      pivot_longer(
+        cols = c(median, IQR),
+        names_to = "statistic",
+        values_to = "values"
+      ) %>%
+      # Make wider to split out the mean and se columns
+      pivot_wider(
+        names_from = c(statistic, range),
+        values_from = values
+      ) %>%
+      ungroup() %>%
+      dplyr::mutate(
+        median_IQR_NAT = paste(median_Native, IQR_Native, sep = "; "),
+        median_IQR_INV = paste(median_Invasive, IQR_Invasive, sep = "; ")
+      ),
+    by = "measurement"
+  ) %>% 
+  rowid_to_column() %>%
+  dplyr::select(rowid, measurement, median_IQR_NAT, median_IQR_INV, effect_size, `95_CI`) %>%
+  kable()
+
+# The 6 acoustic measurements with the largest effect sizes? In either direction
+# sd is standard deviation of frequency, similar to freq.IQR
+# sfm is spectral flatness, similar to spectral entropy
+eff_res_df %>%
+  arrange(desc(abs(cliff_delta))) %>%
+  slice(1:6)
+  
+topms <- eff_res_df %>%
+  arrange(desc(abs(cliff_delta))) %>%
+  slice(1:6) %>%
+  pull(measurement) %>%
+  as.character()
+topms
+
+```
+
+### Figure 3B
+
+A raincloud plot for acoustic measurements that displayed the largest effect sizes of range.
+```{r echo = TRUE, eval = FALSE}
+
+# Filter the measurements data frame by these variables, and rename these
+ameas_df_tmp <- ameas_df %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^range$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  filter(measurement %in% topms) %>%
+  dplyr::mutate(
+    measurement_nm = measurement,
+    # Add new line symbols to all measurement names
+    measurement_nm = recode(
+      measurement_nm,
+      `sd` = "Standard\n deviation\n of frequency",
+      `num_peaks` = "Number of\n peaks",
+      `max_peak_trgh_slope` = "Peak - trough\n slope",
+      `modulation_rate` = "Modulation\n rate",
+      `sfm` = "Spectral\n flatness",
+      `entropy` = "Entropy\n"
+    ),
+    measurement_nm = factor(measurement_nm)
+  ) 
+
+ameas_df_tmp
+
+cols <- scales::alpha(c("navy", "orange"), 0.75)
+
+# Make a list of plots in order of effect sizes
+# Doing this to customize y-axes of each plot, which isn't possible for plots in a single row with facetscales
+gg_list <- list()
+
+i <- 1
+invisible(pblapply(1:length(topms), function(i){
+  
+  tmp_df <- ameas_df_tmp %>%
+    filter(measurement == topms[i]) %>%
+    dplyr::mutate(
+      measurement_nm = as.character(measurement_nm),
+      measurement_nm = factor(measurement_nm, levels = unique(measurement_nm))
+    ) 
+  
+  # Get ymin and ymax values, add a buffer of 2 evenly space values before and after 
+  ymin <- min(tmp_df$values)
+  ymax <- max(tmp_df$values)
+  
+  # Get the difference between max and min, use this as a buffer on the y-axis scale
+  buf <- (ymax - ymin)/5
+  
+  # If on the first plot, add the y-axis label
+  if(i == 1){
+    yal <- "Values"
+  } else{
+    yal <- ""
+  }
+  
+  # Initialize plot margins (top, right, bottom, left)
+  tm <- 1
+  rm <- 0
+  bm <- 1
+  lm <- 0
+  
+  # If on the first plot, make the left margin larger
+  if(i == 1){
+    lm <- 0.5
+  # If on last plot, make the right margin larger
+  } else if(i == length(topms)){
+    rm <- 0.5
+  }
+  
+  # Raincloud plot: Kernel smoothed with boxplot
+  gg <- ggplot(tmp_df, aes(x = range, y = values, fill = range, color = range)) + 
+    geom_flat_violin(position = position_nudge(x = 0.1, y = 0), adjust = 1, size = 0.25)+
+    geom_point(position = position_jitter(width = 0.05), size = 1, stroke = 0.5, alpha = 0.45) +
+    geom_boxplot(aes(x = as.numeric(range) - 0.22, y = values), outlier.shape = NA, alpha = 0.55, width = 0.2, colour = "black", size = 0.25) +
+    facet_wrap(~ measurement_nm) +
+    scale_fill_manual(values = cols) +
+    scale_color_manual(values = cols) +
+    guides(fill = FALSE, color = FALSE) +
+    theme_bw() +
+    xlab("") + ylab(yal) 
+  
+  # gg
+  
+  # If on entropy, make the breaks differently to avoid a gap between 0.86 and 0.88
+  if(topms[i] != "entropy"){
+    gg <- gg +
+      scale_y_continuous(limits = round(c(ymin - buf, ymax + buf), 2), breaks = round(seq(ymin - buf, (ymax + buf), (ymax - ymin)/5), 2))
+  } else {
+    brks <- round(seq(ymin - buf, (ymax + buf), (ymax - ymin)/5), 2)
+    brks <- c(brks[-length(brks)], 0.87)
+    gg <- gg +
+      scale_y_continuous(limits = round(c(ymin - buf, 0.87), 2), breaks = brks)
+  }
+  
+  # Add final aesthetics
+  gg <- gg +
+    theme(
+      axis.title = element_text(size = 14),
+      axis.text.y = element_text(size = 12),
+      axis.text.x = element_text(size = 10),
+      strip.text = element_text(size = 13, margin = margin(0.5, 2, 0.5, 2, "lines")),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(size = 0.25),
+      plot.margin = unit(c(tm, rm, bm, lm), "lines")
+    )
+  
+  # gg
+  
+  # Return the given plot
+  gg_list[[i]] <<- gg
+  
+}))
+
+# Get the legend
+cols <- scales::alpha(c("navy", "orange"), 0.85)
+
+gg_leg <- gtable::gtable_filter(ggplot_gtable(ggplot_build(
+  ameas_df_tmp %>%
+    ggplot(aes(x = range, y = values)) +
+    geom_errorbar(aes(ymin = values, ymax = values, color = range), size = 2, width = 0.25) +
+    scale_color_manual(values = cols) +
+    guides(color = guide_legend(title = "", override.aes = list(size = 4))) +
+    theme_bw() +
+    theme(
+      legend.text = element_text(size = 20),
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(-10, -10, -10, -10),
+      legend.key.width = unit(3, "lines")
+    )
+)), "guide-box")
+
+dev.off()
+
+# Write out the legend separately
+jpeg(file.path(gpath, "Figure3_AcousticMeasrmnts_leg.jpeg"), units = "in", width = 4, height = 1, res = 300)
+grid.draw(gg_leg)
+dev.off()
+
+# Arrange plots into a single image file
+jpeg(file.path(gpath, "Figure3B_AcousticMeasrmnts.jpeg"), units = "in", width = 11, height = 3.85, res = 300)
+
+ggarrange(
+  as.ggplot(gg_list[[1]]),
+  as.ggplot(gg_list[[2]]),
+  as.ggplot(gg_list[[3]]),
+  as.ggplot(gg_list[[4]]),
+  as.ggplot(gg_list[[5]]),
+  as.ggplot(gg_list[[6]]),
+  nrow = 1,
+  widths = rep(2.2, 6)
+)
+
+dev.off()
+
+```
+
+See the main body of the article for this figure.
+
+Frequency quartiles indicate the distribution of energy across the spectrum. Here quartiles are the 3 frequencies that divide the spectrum per call into 4 even intervals. The 25% quartile represents the frequency at which 25% of total energy in the signal is located below the given frequency. Likewise, the 75% quartile represents the frequency that splits off 75% of the total energy of the call. 
+
+The interquartile range represents the difference in frequency between these quartiles, a measurement of the frequency spread of the total energy of the signal. Higher IQR in the invasive range indicates that energy is more spread out over the range of frequency than native range calls.
+
+For spectral flatness and spectral entropy, values closer to 1 are noisy signals. Lower spectral flatness and entropy values represent more ordered and informative signals, which ties lower flatness and spectral entropy in native range calls to higher frequency modulation levels.
+
+High background noise can affect frequency quantile measurements and spectral entropy<a href='#References'><sup>[1]</sup></a>, but we pre-processed calls using a strict SNR threshold prior to these analyses, so we did not expect differences in these parameters to arise from differences in background noise between ranges. 
+
+```{r echo = FALSE, eval = FALSE}
+
+# A version of Figure 3B that contains just frequency modulation measurements for talks/presentations
+
+topms <- c("num_peaks", "max_peak_trgh_slope", "modulation_rate")
+
+# Filter the measurements data frame by these variables, and rename these
+ameas_df_tmp <- ameas_df %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^range$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  filter(measurement %in% topms) %>%
+  dplyr::mutate(
+    measurement_nm = measurement,
+    # Add new line symbols to all measurement names
+    measurement_nm = recode(
+      measurement_nm,
+      `num_peaks` = "Number of\n peaks",
+      `max_peak_trgh_slope` = "Peak - trough\n slope",
+      `modulation_rate` = "Modulation\n rate"
+    ),
+    measurement_nm = factor(measurement_nm)
+  ) 
+
+ameas_df_tmp
+
+cols <- scales::alpha(c("navy", "orange"), 0.75)
+
+# Make a list of plots in order of effect sizes
+# Doing this to customize y-axes of each plot, which isn't possible for plots in a single row with facetscales
+gg_list <- list()
+
+# i <- 6
+invisible(pblapply(1:length(topms), function(i){
+  
+  tmp_df <- ameas_df_tmp %>%
+    filter(measurement == topms[i]) %>%
+    dplyr::mutate(
+      measurement_nm = as.character(measurement_nm),
+      measurement_nm = factor(measurement_nm, levels = unique(measurement_nm))
+    ) 
+  
+  # Get ymin and ymax values, add a buffer of 2 evenly space values before and after 
+  ymin <- min(tmp_df$values)
+  ymax <- max(tmp_df$values)
+  
+  # Get the difference between max and min, use this as a buffer on the y-axis scale
+  buf <- (ymax - ymin)/5
+  
+  # If on the first plot, add the y-axis label
+  if(i == 1){
+    yal <- "Values"
+  } else{
+    yal <- ""
+  }
+  
+  # Initialize plot margins (top, right, bottom, left)
+  tm <- 1
+  rm <- 0
+  bm <- 1
+  lm <- 0
+  
+  # If on the first plot, make the left margin larger
+  if(i == 1){
+    lm <- 0.5
+  # If on last plot, make the right margin larger
+  } else if(i == length(topms)){
+    rm <- 0.5
+  }
+  
+  # Raincloud plot: Kernel smoothed with boxplot
+  gg <- ggplot(tmp_df, aes(x = range, y = values, fill = range, color = range)) + 
+    geom_flat_violin(position = position_nudge(x = 0.1, y = 0), adjust = 1, size = 0.25)+
+    geom_point(position = position_jitter(width = 0.05), size = 0.75, stroke = 0.5, alpha = 0.45) +
+    geom_boxplot(aes(x = as.numeric(range) - 0.22, y = values), outlier.shape = NA, alpha = 0.55, width = 0.2, colour = "black", size = 0.25) +
+    facet_wrap(~ measurement_nm) +
+    scale_fill_manual(values = cols) +
+    scale_color_manual(values = cols) +
+    guides(fill = FALSE, color = FALSE) +
+    theme_bw() +
+    xlab("") + ylab(yal) 
+  
+  # gg
+  
+  # Add final aesthetics
+  gg <- gg +
+    theme(
+      axis.title = element_text(size = 9),
+      axis.text = element_text(size = 8),
+      axis.ticks = element_line(size = 0.15),
+      strip.text = element_text(size = 9, margin = margin(0.5, 2, 0.5, 2, "lines")),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = unit(c(tm, rm, bm, lm), "lines")
+    )
+  
+  # gg
+  
+  # Return the given plot
+  gg_list[[i]] <<- gg
+  
+}))
+
+# Arrange plots into a single image file
+jpeg(file.path(gpath, "Figure3B_AcousticMeasrmnts_FM.jpeg"), units = "in", width = 4.40, height = 2.30, res = 300)
+
+ggarrange(
+  as.ggplot(gg_list[[1]]),
+  as.ggplot(gg_list[[2]]),
+  as.ggplot(gg_list[[3]]),
+  nrow = 1,
+  widths = rep(2.2, 3)
+)
+
+dev.off()
+
+```
+
+## Temporal comparison
+
+Get the invasive range calls set aside for a temporal comparison, as well as native range calls.
+```{r echo = TRUE, eval = TRUE}
+
+calls <- freq_modQ_df %>%
+  filter(question == "temporal" | range == "Native") %>%
+  filter(question != "indiv_scale") %>% # exclude repeatedly sampled individual calls
+  pull(sound.files) %>%
+  as.character()
+
+length(calls) 
+
+peaks_temp_df <- peaks_trghs_df3 %>%
+  filter(sound.files %in% calls) %>%
+  droplevels()
+# glimpse(peaks_temp_df)
+
+# 40 native range calls, 75 invasive range calls
+peaks_temp_df %>%
+  group_by(range) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# How many years are represented in the invasive range? 25 calls from 2004, 30 calls for 2011, and 20 2019 calls
+peaks_temp_df %>%
+  filter(range == "Invasive") %>%
+  group_by(year) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Invasive spatial areas represented?
+# Louisiana and Texas, as expected (New Orleans, Austin)
+peaks_temp_df %>%
+  filter(range == "Invasive") %>%
+  group_by(region, dept_state) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Which invasive range site-years? 
+# We recorded repeatedly sampled individuals at some of these sites
+# But calls from repeatedly sampled individuals used in the final dataset are not included here (see below)
+peaks_temp_df %>%
+  filter(range == "Invasive") %>%
+  group_by(site_year) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# City-years
+peaks_temp_df %>%
+  filter(range == "Invasive") %>%
+  group_by(year, invasive_city) %>%
+  dplyr::summarise(
+    n_calls = n_distinct(sound.files)
+  )
+
+# Were any calls from known repeatedly sampled individuals used in frequency tracing?
+# Yes, but these 2 calls are also from birds that were not retained as repeatedly sampled individuals in the final dataset (not enough calls remained after pre-processing)
+unique(peaks_temp_df$sound.files[grep("site_scale", peaks_temp_df$sound.files)])
+
+# These two calls were from INV-UM3 and INV-UM4, not present in calls for the repeatedly sampled individuals
+# nat_inv_est[grep(paste(peaks_temp_df$sound.files[grep("site_scale", peaks_temp_df$sound.files)], collapse= "|"), nat_inv_est$sound.files), ]
+
+# nat_inv_est %>%
+# filter(social_scale == "Individual") %>%
+# pull(Bird_ID) %>%
+# unique()
+
+```
+
+## Combining acoustic measurements
+
+Calculated frequency modulation measurements per call.
+```{r echo = TRUE, eval = TRUE}
+
+# Get the number of peaks per call
+num_peaks_tdf <- peaks_temp_df %>%
+  # Create a range-year column
+  dplyr::mutate(
+    range_year = paste(range, year, sep = "_")
+  ) %>%
+  # Find the number of peaks per call
+  group_by(range_year, sound.files) %>%
+  dplyr::summarise(
+    num_peaks = length(peak_number)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(c(sound.files, num_peaks))
+
+glimpse(num_peaks_tdf)
+
+# Modulation rate per call
+modRate_tdf <- peaks_temp_df %>%
+  # Create a range-year column
+  dplyr::mutate(
+    range_year = paste(range, year, sep = "_")
+  ) %>%
+  # Calculate duration per call
+  inner_join(
+    freq_mod_df %>%
+    dplyr::mutate(
+      duration = end - start
+    ) %>%
+      dplyr::select(sound.files, duration),
+    by = "sound.files"
+  ) %>%
+  # Calculate modulation rate value per call
+  group_by(range_year, sound.files, duration) %>%
+  dplyr::summarise(
+    num_peaks = length(peak_number)
+  ) %>%
+  ungroup() %>%
+  dplyr::mutate(
+    modulation_rate = (num_peaks/duration) # units for rate of change = peaks/second
+  ) %>%
+  dplyr::select(c(sound.files, modulation_rate))
+
+glimpse(modRate_tdf)
+
+# Maximum peak - trough slope per call
+peakTroughSlope_tdf <- peaks_temp_df %>%
+  # Create a range-year column
+  dplyr::mutate(
+    range_year = paste(range, year, sep = "_")
+  ) %>%
+  # Drop peaks that were not matched to troughs
+  filter(!is.na(peak_trgh_slope)) %>%
+  # Get maximum (absolute) peak-trough range per call
+  group_by(range, sound.files) %>%
+  dplyr::summarise(
+    max_peak_trgh_slope = min(peak_trgh_slope)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(sound.files, max_peak_trgh_slope)
+
+glimpse(peakTroughSlope_tdf)
+
+```
+
+Combined these frequency modulation measurements with the 27 standard acoustic measurements used in machine learning (see previous script, prior to filtering for collinearity). 115 calls total across years.
+```{r echo = TRUE, eval = TRUE}
+
+acoustic_measuremnts <- read.csv(file.path(path, "acoustic_parameters.csv")) %>%
+      dplyr::select(-c(selec))
+glimpse(acoustic_measuremnts)
+
+ameast_df <- acoustic_measuremnts %>%
+  # Add back the range column
+  inner_join(
+    nat_inv_est %>%
+      as_tibble() %>%
+      dplyr::select(range, year, sound.files),
+    by = "sound.files"
+  ) %>%
+  # Create a range-year column
+  dplyr::mutate(
+    range_year = paste(range, year, sep = "_")
+  ) %>%
+  dplyr::select(-c(year)) %>%
+  # Filter by calls used in the frequency modulation analysis
+  filter(sound.files %in% peaks_temp_df$sound.files) %>%
+  # Join with the frequency modulation measurements
+  full_join(
+    num_peaks_tdf,
+    by = "sound.files"
+  ) %>%
+  full_join(
+    modRate_tdf,
+    by = "sound.files"
+  ) %>%
+  full_join(
+    peakTroughSlope_tdf,
+    by = "sound.files"
+  ) 
+  
+glimpse(ameast_df)
+
+```
+
+I did not assess normality per acoustic measurement per range-year, since I proceeded with just summary statistics for the temporal analysis.
+
+Calculate median and interquartile range per acoustic measurement per range-year.
+```{r echo = TRUE, eval = TRUE}
+  
+ameast_ss <- ameast_df %>%
+  dplyr::select(-c(sound.files)) %>%
+  dplyr::mutate(
+    range = factor(range, levels = c("Native", "Invasive"))
+  ) %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^range$|^range_year$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  group_by(measurement, range_year) %>%
+  dplyr::summarise(
+    median = round(median(values), 2),
+    IQR = round(IQR(values), 2)
+  ) %>%
+  # Convert to long format again
+  pivot_longer(
+    cols = c(median, IQR),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  # Make wider to split out the mean and se columns
+  pivot_wider(
+    names_from = c(statistic, range_year),
+    values_from = values
+  ) %>%
+  ungroup()
+
+ameast_ss %>%
+  kable()
+
+```
+
+### Appendix Figure 1
+
+A raincloud plot for acoustic measurements that displayed the largest effect sizes of range, shown here for range-years in the temporal analysis.
+```{r echo = TRUE, eval = FALSE}
+
+# Filter the measurements data frame by these variables, and rename these
+ameast_df_tmp <- ameast_df %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^range$|^range_year$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  filter(measurement %in% topms) %>%
+  dplyr::mutate(
+    measurement_nm = measurement,
+    # Add new line symbols to all measurement names
+    measurement_nm = recode(
+      measurement_nm,
+      `sd` = "Standard\n deviation\n of frequency",
+      `num_peaks` = "Number of\n peaks",
+      `max_peak_trgh_slope` = "Peak - trough\n slope",
+      `modulation_rate` = "Modulation\n rate",
+      `sfm` = "Spectral\n flatness",
+      `entropy` = "Entropy"
+    ),
+    measurement_nm = factor(measurement_nm),
+    range_year = factor(range_year, levels = c("Native_2017", "Invasive_2004", "Invasive_2011", "Invasive_2019"))
+  ) 
+
+ameast_df_tmp
+
+cols <- scales::alpha(c("navy", rep("orange", 3)), 0.75)
+
+# Make a list of plots in order of effect sizes
+# Doing this to customize y-axes of each plot, which isn't possible for plots in a single row with facetscales
+gg_list <- list()
+
+# i <- 2
+invisible(pblapply(1:length(topms), function(i){
+  
+  tmp_df <- ameast_df_tmp %>%
+    filter(measurement == topms[i]) %>%
+    dplyr::mutate(
+      measurement_nm = as.character(measurement_nm),
+      measurement_nm = factor(measurement_nm, levels = unique(measurement_nm))
+    ) 
+  
+  # Get ymin and ymax values, add a buffer of 2 evenly space values before and after 
+  ymin <- min(tmp_df$values)
+  ymax <- max(tmp_df$values)
+  
+  # Get the difference between max and min, use this as a buffer on the y-axis scale
+  buf <- (ymax - ymin)/5
+  
+  # If on the first plot, add the y-axis label
+  if(i == 1){
+    yal <- "Values"
+  } else{
+    yal <- ""
+  }
+  
+  # Initialize plot margins (top, right, bottom, left)
+  tm <- 1
+  rm <- 0
+  bm <- 1
+  lm <- 0
+  
+  # If on the first plot, make the left margin larger
+  if(i == 1){
+    lm <- 0.5
+  # If on last plot, make the right margin larger
+  } else if(i == length(topms)){
+    rm <- 0.5
+  }
+  
+  # Raincloud plot: Kernel smoothed with boxplot
+  gg <- ggplot(tmp_df, aes(x = range_year, y = values, fill = range_year, color = range_year)) + 
+    geom_flat_violin(position = position_nudge(x = 0.1, y = 0), adjust = 1, size = 0.15) +
+    geom_point(position = position_jitter(width = 0.05), size = 0.75, stroke = 0.5, alpha = 0.45) +
+    geom_boxplot(aes(x = as.numeric(range_year) - 0.22, y = values), outlier.shape = NA, alpha = 0.55, width = 0.15, colour = "black", size = 0.25) +
+    facet_wrap(~ measurement_nm) +
+    scale_fill_manual(values = cols) +
+    scale_color_manual(values = cols) +
+    guides(fill = FALSE, color = FALSE) +
+    theme_bw() +
+    xlab("") + ylab(yal) +
+    scale_y_continuous(limits = round(c(ymin - buf, ymax + buf), 2), breaks = round(seq(ymin - buf, (ymax + buf), (ymax - ymin)/5), 2)) +
+    theme(
+      axis.title = element_text(size = 14),
+      axis.text.y = element_text(size = 14),
+      axis.text.x = element_text(size = 14, angle = 35, hjust = 1),
+      strip.text = element_text(size = 16, margin = margin(0.5, 2, 0.5, 2, "lines")),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(size = 0.25),
+      plot.margin = unit(c(tm, rm, bm, lm), "lines")
+    )
+  
+  # gg
+  
+  # Return the given plot
+  gg_list[[i]] <<- gg
+  
+}))
+
+# Get the legend
+cols <- scales::alpha(c("navy", "orange"), 0.85)
+
+gg_leg <- gtable::gtable_filter(ggplot_gtable(ggplot_build(
+  ameast_df_tmp %>%
+    ggplot(aes(x = range, y = values)) +
+    geom_errorbar(aes(ymin = values, ymax = values, color = range), size = 2, width = 0.25) +
+    scale_color_manual(values = cols) +
+    guides(color = guide_legend(title = "", override.aes = list(size = 2.5))) +
+    theme_bw() +
+    theme(
+      legend.text = element_text(size = 16),
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(-10, -10, -10, -10),
+      legend.key.width = unit(3, "lines")
+    )
+)), "guide-box")
+
+dev.off()
+
+# Arrange plots into a single image file
+jpeg(file.path(gpath, "SupplementaryFigure2_TemporalAcousticMeasrmnts.jpeg"), units = "in", width = 11, height = 11, res = 300)
+
+ggarrange(
+  as.ggplot(gg_leg),
+  as.ggplot(ggarrange(
+    as.ggplot(gg_list[[1]]),
+    as.ggplot(gg_list[[2]]),
+    as.ggplot(gg_list[[3]]),
+    as.ggplot(gg_list[[4]]),
+    as.ggplot(gg_list[[5]]),
+    as.ggplot(gg_list[[6]]),
+    nrow = 2,
+    heights = rep(4, 2)
+  )),
+  nrow = 2,
+  heights = c(1, 10)
+)
+
+dev.off()
+
+```
+
+See the appendix for of the associated article this figure, which shows that structural differentiation among years in the invasive range was not comparable to the level of structural differentiation we reported between ranges for these same acoustic measurements.
+
+# Validation of habitat differences
+
+We performed analyses to address whether habitat differences between ranges influenced the structure of contact calls. Native range birds were largely recorded in agricultural settings, although we did record birds in the city of Montevideo (living in large green spaces). In the invasive range, birds were largely recorded in cities (although often near green spaces as well).
+
+## Random forests misclassification by native range habitat
+
+Four sites were recorded in the city of Montevideo: Bodegas Carrau (BCAR, a vineyard on the edge of Montevideo next to a busy road), la Facultad de Agronomia (FAGR, a department of la Universidad de la Republica with a lot of trees and gardens), CEME (el Cementerio Central, a green space in the middle of Montevideo, far from agricultural areas), and GOLF (el Club de Golf, a green space in the middle of Montevideo, also far from agricultural areas).
+
+24 native range calls were misclassified as invasive range calls during random forests prediction back to range. The only native range "urban" sites represented in the misclassified calls were BCAR and FAGR, with 1 out of 5 and 1 out of 2 calls misclassified during random forests prediction. 10 other agro-interface sites had anywhere from 1 to 6 calls misclassified during this analysis.
+
+CEME and GOLF had 100% correct classification back to the native range (2 and 7 calls, respectively) during random forests prediction.
+
+This indicates that at least in the native range, there was no clear pattern of urban native range calls being misclassified as invasive range calls (which were mostly recorded in urban areas). If there were a significant difference in call structure between habitats, we would expect to see more native range urban calls misclassified to the invasive range.
+
+See SimplerSignatures_AdditionalMaterials_02_AcousticStructure_SupervisedML.Rmd and the associated RMarkdown output for more information.
+
+# Visualizing habitat differences
+
+For random forests analysis, a subset of calls per site were employed for the prediction step. Here I decided to look more closely at structural differences among native and invasive range habitats using all calls per site.
+
+I picked 4 invasive range urban sites from the city of Austin recorded in 2019 (SOCC, MART, INTR, ELEM) and 4 native range non-urban sites recorded in Colonia, Uruguay in 2017 (PIED, INES-08, LENA, INES-03), to match site sample sizes for native range urban sites.
+
+Given the number of calls recorded at invasive range sites, there are more invasive urban calls than in either habitat category for the native range.
+```{r echo = TRUE, eval = TRUE}
+
+nu_sites <- c("BCAR", "FAGR", "GOLF", "CEME")
+iu_sites <- c("SOCC", "MART", "INTR", "ELEM")
+nnu_sites <- c("PIED", "INES-08", "LENA", "INES-03")
+
+habitat_df <- nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  filter(year == "2019" | year == "2017") %>%
+  filter(site %in% c(nu_sites, iu_sites, nnu_sites)) %>%
+  dplyr::mutate(
+    habitat = site,
+    habitat = gsub("BCAR|FAGR|GOLF|CEME", "Native urban", habitat),
+    habitat = gsub("SOCC|MART|INTR|ELEM", "Invasive urban", habitat),
+    habitat = gsub("PIED|INES-08|LENA|INES-03", "Native agro-interface", habitat)
+  )
+  
+glimpse(habitat_df)
+
+# Sample sizes by habitat
+habitat_df %>%
+  group_by(habitat) %>%
+  dplyr::summarise(
+    n_calls = n()
+  )
+
+```
+
+What was the maximum number of calls recorded at any of these native range sites? 27 calls was the maximum recorded.
+```{r echo = TRUE, eval = TRUE}
+
+habitat_df %>%
+  filter(range == "Native") %>%
+  group_by(habitat, site) %>%
+  dplyr::summarise(
+    n_calls = n()
+  )
+
+```
+
+Which invasive range sites here had more than 27 calls? All sites.
+```{r echo = TRUE, eval = TRUE}
+
+habitat_df %>%
+  filter(range == "Invasive") %>%
+  group_by(habitat, site) %>%
+  dplyr::summarise(
+    n_calls = n()
+  )
+
+```
+
+20 calls were randomly sampled from each of these invasive range sites, so that sample sizes would be more balanced for effect size calculations across habitat types.
+```{r echo = TRUE, eval = TRUE}
+
+set.seed(seed)
+
+habitat_dfr <- habitat_df %>%
+  filter(site %in% iu_sites) %>%
+  droplevels() %>%
+  # Random sampling by site
+  group_by(site) %>%
+  nest() %>%
+  ungroup() %>%
+  dplyr::mutate(
+    rsamp_calls = purrr::map2(data, 20, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsamp_calls) %>%
+  # Add back the other two habitat categories
+  bind_rows(
+    habitat_df %>%
+      filter(!site %in% iu_sites) %>%
+      droplevels()
+  )
+
+# Check sample sizes by site, looks good
+habitat_dfr %>%
+  group_by(habitat, site) %>%
+  dplyr::summarise(
+    n_calls = n()
+  )
+
+# Median and range of calls per site 
+habitat_dfr %>%
+  group_by(site) %>%
+  dplyr::summarise(
+    n_calls = n()
+  ) %>%
+  dplyr::summarise(
+    median_calls = median(n_calls),
+    range_calls = paste(range(n_calls), collapse = " - ")
+  )
+
+# Check sample sizes by habitat, looks good
+habitat_dfr %>%
+  group_by(habitat) %>%
+  dplyr::summarise(
+    n_calls = n()
+  )
+
+```
+
+Principal components analysis was performed to summarize acoustic parameters into linear principal components during feature extraction for supervised machine learning. Using previous PCA results so as to evaluate habitat differences in the same acoustic space as the full dataset of calls between ranges. 
+```{r echo = TRUE, eval = TRUE}
+
+# Image features were obtained for a complementary analysis, not used here
+# Obtained just principal components representing the standard set of acoustic parameters above
+pca_feats <- read.csv(file.path(path, "supervised_RF_datasets_acousticSimilarity.csv")) %>%
+  dplyr::select(-c(names(.)[grep("rf_set|img_params|SPCC|DTW|cep", names(.))]))
+dim(pca_feats)
+glimpse(pca_feats)
+
+# Write this filtered .csv out for data sharing. Use the following .csv to reproduce most results below
+# write.csv(pca_feats, file.path(path, "PCA_spectral_acoustic_measurements.csv"), row.names = FALSE)
+
+# Loadings on the first principal component (PC)?
+pp_pca <- readRDS(file.path(path, "PCA_results_Site_acs_params.RDS"))
+str(pp_pca)
+
+# Acoustic parameters that loaded onto the first 2 PCs
+pp_pca$rotation[, "PC1"][order(abs(pp_pca$rotation[, "PC1"]), decreasing = TRUE)]
+pp_pca$rotation[, "PC2"][order(abs(pp_pca$rotation[, "PC2"]), decreasing = TRUE)]
+
+# PCs 1 and 2 explained 44.3% of variation
+summary(pp_pca)
+
+# Join with the habitat data frame
+habitat_pca <- habitat_dfr %>%
+  dplyr::select(habitat, sound.files, site, year, range) %>%
+  inner_join(
+    pca_feats %>%
+      dplyr::select(sound.files, names(.)[grep("acs_params", names(.))]),
+    by = "sound.files"
+    )
+# glimpse(habitat_pca)
+
+```
+
+### Figure A3
+
+Acoustic space was visualized with the first two principal components to assess separation of calls in acoustic space by habitat type.
+
+I parameterized density kernels similarly to the random forests main visual, in which contours delineated bins of 1/10th of the total density.
+```{r echo = TRUE, eval = TRUE}
+
+gg_df <- habitat_pca %>%
+  dplyr::mutate(
+    habitat = factor(habitat, levels = c("Native agro-interface", "Native urban", "Invasive urban"))
+  ) %>%
+  dplyr::rename(
+    `X` = "acs_params_PCA_1",
+    `Y` = "acs_params_PCA_2"
+  ) %>%
+  dplyr::select(-c(names(.)[grep("acs_params_PCA_", names(.))]))
+
+h <- 5 # bandwidth (kernel density estimator or KDE width)
+
+# Get density values and bin them to check out bins used by geom_density2d
+
+# Native agro-interface
+nat_nu_dens <- kde2d(
+  x = gg_df %>%
+      filter(habitat == "Native agro-interface") %>%
+      pull(X),
+  y = gg_df %>%
+      filter(habitat == "Native agro-interface") %>%
+      pull(Y),
+  h = h
+)
+
+str(nat_nu_dens)
+
+# Native urban
+nat_u_dens <- kde2d(
+  x = gg_df %>%
+      filter(habitat == "Native urban") %>%
+      pull(X),
+  y = gg_df %>%
+      filter(habitat == "Native urban") %>%
+      pull(Y),
+  h = h
+)
+
+str(nat_u_dens)
+
+# Inasive urban
+inv_u_dens <- kde2d(
+  x = gg_df %>%
+      filter(habitat == "Invasive urban") %>%
+      pull(X),
+  y = gg_df %>%
+      filter(habitat == "Invasive urban") %>%
+      pull(Y),
+  h = h
+)
+
+str(inv_u_dens)
+
+range(nat_nu_dens)
+range(nat_u_dens)
+range(inv_u_dens)
+
+bw_nat_nu <- max(nat_nu_dens$z)/10
+bw_nat_u <- max(nat_u_dens$z)/10
+bw_inv_u <- max(inv_u_dens$z)/10
+
+bw_nat_nu
+bw_nat_u
+bw_inv_u
+
+brks_nat_nu <- seq(min(nat_nu_dens$z), max(nat_nu_dens$z), bw_nat_nu)
+brks_nat_u <- seq(min(nat_u_dens$z), max(nat_u_dens$z), bw_nat_u)
+brks_inv_u <- seq(min(inv_u_dens$z), max(inv_u_dens$z), bw_inv_u)
+
+# 10 bins each, looks good
+length(brks_nat_nu)
+length(brks_nat_u)
+length(brks_inv_u)
+
+```
+
+```{r echo = TRUE, eval = TRUE}
+
+levels(gg_df$habitat)
+
+cols <- scales::alpha(c("navy", "dodgerblue", "orange"), 0.65)
+shps <- c(21, 24, 25)
+
+gg <- ggplot(data = gg_df, aes(x = X, y = Y, fill = habitat, color = habitat)) +
+  geom_density2d(
+    data = gg_df %>%
+      filter(habitat == "Native agro-interface"),
+    size = 0.65,
+    binwidth = bw_nat_nu,
+    h = h,
+    color = cols[1]
+    ) +
+  geom_density2d(
+    data = gg_df %>%
+      filter(habitat == "Native urban"),
+    size = 0.65,
+    binwidth = bw_nat_u,
+    h = h,
+    color = cols[2]
+    ) +
+  geom_density2d(
+    data = gg_df %>%
+      filter(habitat == "Invasive urban"),
+    size = 0.65,
+    binwidth = bw_inv_u,
+    h = h,
+    color = cols[3]
+    ) +
+  xlab("Principal Component 1") + 
+  ylab("Principal Component 2") + 
+  theme_bw() +
+  theme(
+    legend.position = "top",
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.ticks = element_line(size = 0.35),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.box.margin = margin(-5, -5, -5, -5),
+    legend.key.width = unit(3, "lines")
+  )
+
+# Get the legend
+gg_leg <- gtable::gtable_filter(ggplot_gtable(ggplot_build(
+  gg_df %>%
+    ggplot(aes(x = X, y = Y, color = habitat)) +
+    geom_line() +
+    scale_color_manual(values = cols) +
+    guides(color = guide_legend(title = "", override.aes = list(size = 2))) +
+    theme_bw() +
+    theme(
+      legend.text = element_text(size = 12),
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(-10, -10, -10, -10),
+      legend.key.width = unit(2, "lines")
+    )
+)), "guide-box")
+
+dev.off()
+
+# Arrange the legend and plots into a single image file
+# 1.5 column, 140mm or 5.51 in
+# jpeg(file.path(gpath, "SimplerSigs_HabitatPCA.jpeg"), units = "in", width = 5.51, height = 4, res = 600)
+# ggarrange(
+#   as.ggplot(gg_leg),
+#   as.ggplot(gg),
+#   nrow = 2,
+#   heights = c(1, 9)
+# )
+# dev.off()
+  
+```
+
+See the appendix for this figure. The centers of the density contours for the native and invasive range urban calls were closer together compared to the native range agro-interface calls, indicating structural similarities by urban habitat. 
+
+## Assessing the effect of habitat on standard acoustic parameters
+
+Which acoustic measurements were the most different among calls in each habitat? Using the same calls selected for validation as above.
+
+Get the standard set of 27 spectral acoustic measurements measured for supervised machine learning, merge with these calls. 210 calls total.
+```{r echo = TRUE, eval = TRUE}
+
+acs_params_habitat <- habitat_dfr %>%
+  dplyr::select(habitat, sound.files, site, year, range) %>%
+  inner_join(
+    read.csv(file.path(path, "acoustic_parameters.csv")) %>%
+      dplyr::select(-c(selec)),
+    by = "sound.files"
+    )
+glimpse(acs_params_habitat)
+
+```
+
+I did not assess normality or homogeneity of variance per acoustic measurement per habitat because I decided to use Cliff's delta (not Cohen's d) for effect sizes for more direct comparison to effect sizes calculated between ranges above.
+
+Calculate median and interquartile range per acoustic measurement per habitat.
+```{r echo = TRUE, eval = TRUE}
+  
+acs_params_habitat_ss <- acs_params_habitat %>%
+  dplyr::select(-c(range, site, year)) %>%
+  dplyr::mutate(
+    habitat = factor(habitat, levels = c("Native agro-interface", "Native urban", "Invasive urban"))
+  ) %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^habitat$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  group_by(measurement, habitat) %>%
+  dplyr::summarise(
+    median = round(median(values), 2),
+    IQR = round(IQR(values), 2)
+  ) %>%
+  # Convert to long format again
+  pivot_longer(
+    cols = c(median, IQR),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  # Make wider to split out the mean and se columns
+  pivot_wider(
+    names_from = c(statistic, habitat),
+    values_from = values
+  ) %>%
+  ungroup()
+
+acs_params_habitat_ss %>%
+  kable()
+
+```
+
+Calculate Cliff's delta as the effect size of range per acoustic measurement. Filtered by native urban and invasive urban calls to assess effect of range given the same habitat, then by native agro-interface and native urban to assess the effect of habitat.
+```{r echo = TRUE, eval = FALSE}
+
+var_nms <- names(acs_params_habitat)[-grep("^habitat$|^range$|^sound.files$|^site$|^year$", names(acs_params_habitat))]
+var_nms
+
+# i <- 1
+eff_resh_df <- rbindlist(pblapply(1:length(var_nms), function(i){
+  
+  # Calculate effect of range
+  
+  tmp_df <- acs_params_habitat %>%
+    dplyr::select(habitat, var_nms[i])
+  
+  nat <- tmp_df %>%
+    filter(habitat == "Native urban") %>%
+    pull(var_nms[i])
+  
+  inv <- tmp_df %>%
+    filter(habitat == "Invasive urban") %>%
+    pull(var_nms[i])
+  
+  # Get Cliff's delta for independent groups (all values of y compared to all values of x)
+  # orddom package v 3.1
+  cliff_delta <- dmes(nat, inv)$dc
+  
+  # Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+  # Using 10000 bootstrap iterations
+  ci_res <- dmes.boot(nat, inv, theta.es = "dc", ci.meth = "BCA", B = 10000)
+  ci_res
+  
+  lower_95_CI <- ci_res$theta.bci.lo
+  upper_95_CI <- ci_res$theta.bci.up
+  
+  range_df <- data.frame(
+    measurement = var_nms[i],
+    type = "Range",
+    cliff_delta = cliff_delta,
+    lower_95_CI = lower_95_CI,
+    upper_95_CI = upper_95_CI
+  )
+  
+  # Calculate effect of habitat
+  nat_agr <- tmp_df %>%
+    filter(habitat == "Native agro-interface") %>%
+    pull(var_nms[i])
+  
+  nat_urb <- tmp_df %>%
+    filter(habitat == "Native urban") %>%
+    pull(var_nms[i])
+  
+  # Get Cliff's delta for independent groups (all values of y compared to all values of x)
+  # orddom package v 3.1
+  cliff_delta <- dmes(nat_agr, nat_urb)$dc
+  
+  # Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+  # Using 10000 bootstrap iterations
+  ci_res <- dmes.boot(nat_agr, nat_urb, theta.es = "dc", ci.meth = "BCA", B = 10000)
+  ci_res
+  
+  lower_95_CI <- ci_res$theta.bci.lo
+  upper_95_CI <- ci_res$theta.bci.up
+  
+  habitat_df <- data.frame(
+    measurement = var_nms[i],
+    type = "Habitat",
+    cliff_delta = cliff_delta,
+    lower_95_CI = lower_95_CI,
+    upper_95_CI = upper_95_CI
+  )
+  
+  return(
+    range_df %>%
+           bind_rows(habitat_df)
+  )
+  
+}))
+
+eff_resh_df
+
+write.csv(eff_resh_df, file.path(path, "cliffs_delta_bootstrappedCIs_habitat.csv"), row.names = FALSE)
+
+```
+
+Effect sizes ordered by absolute magnitude. 
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+eff_resh_df <- read.csv(file.path(path, "cliffs_delta_bootstrappedCIs_habitat.csv"))
+glimpse(eff_resh_df)
+
+# Make a table for appendix, in order of decreasing largest absolute effect size within comparisons
+eff_resh_df %>%
+  dplyr::mutate(
+    effect_size = round(cliff_delta, 2),
+    lower_95_CI = round(lower_95_CI, 2),
+    upper_95_CI = round(upper_95_CI, 2),
+    `95_CI` = paste("(", lower_95_CI, ", ", upper_95_CI, ")", sep = "")
+  ) %>%
+  # Arrange by decreasing effect size within habitat type
+  arrange(type, desc(abs(effect_size))) %>%
+  dplyr::select(type, measurement, effect_size, `95_CI`) %>%
+  kable()
+
+# Note that spectral flatness has a 95% CI that includes 0 
+
+# Acoustic measurements with large effect sizes? In either direction
+eff_reshL_df <- eff_resh_df %>%
+  # Keep the top largest effect sizes per type
+  # Using a rule-of-thumb for Cliff's delta reported in the literature
+  filter(abs(cliff_delta) >= 0.474) %>%
+  dplyr::mutate(
+    effect_size = round(cliff_delta, 2),
+    lower_95_CI = round(lower_95_CI, 2),
+    upper_95_CI = round(upper_95_CI, 2),
+    `95_CI` = paste("(", lower_95_CI, ", ", upper_95_CI, ")", sep = "")
+  ) %>%
+  arrange(type, desc(abs(effect_size))) %>%
+  dplyr::select(type, measurement, effect_size, `95_CI`)
+
+eff_reshL_df
+
+
+topms <- eff_reshL_df %>%
+  pull(measurement) %>%
+  as.character()
+topms
+
+```
+
+The largest effect sizes of habitat (native agro-interface versus native urban) were all temporal parameters. These effect sizes were statistcically significant (95% CIs that did not cross zero).
+
+The largest effect sizes of range (native urban versus invasive urban) were related to frequency. These effect sizes also had 95% CIs that did not cross zero.
+
+## Effect of habitat on frequency modulation measurements
+
+And are frequency modulation patterns actually simpler (e.g. more similar to invasive range) for urban native range calls in the frequency modulation dataset? 2 sites, only 8 calls, 1/5 of the native range dataset used for frequency modulation. I retained 2 native range agro-interface and 2 invasive urban sites for these comparisons. This analysis was done separately from other acoustic measurements because a different set of calls was employed.
+
+Using the frequency modulation measurements obtained above.
+```{r echo = TRUE, eval = TRUE}
+
+# peaks_spat_df %>%
+  # filter(year == "2019") %>%
+  # distinct(site)
+
+nat_sites <- c("PIED", "INES-08", "FAGR", "GOLF")
+# inv_sites <- c("SOCC", "INTR") # for FM used 2004, 2011 calls
+inv_sites <- c("AIRP", "MANO") # 2019
+
+# Get calls for these sites and add a habitat column
+peaks_hab_df <- peaks_spat_df %>%
+  filter(site %in% c(nat_sites, inv_sites)) %>%
+  # Add a habitat column
+  dplyr::mutate(
+    habitat = ifelse(range == "Invasive", "Invasive urban", "Native agro-interface"),
+    habitat = ifelse(range == "Native" & site %in% c("FAGR", "GOLF"), "Native urban", habitat)
+  ) %>%
+  # distinct(site, habitat)
+  # Ensure levels of the range and habitat columns are in the expected order
+  dplyr::mutate(
+    range = factor(range, levels = c("Native", "Invasive")),
+    habitat = factor(habitat, levels = c("Native agro-interface", "Native urban", "Invasive urban"))
+  )
+
+glimpse(peaks_hab_df)
+
+peaks_hab_df %>%
+  distinct(site, habitat, year)
+
+# Get number of peaks, modulation rate, peak-trough slope
+FM_hab_df <- peaks_hab_df %>%
+  # Find the number of peaks per call
+  group_by(habitat, sound.files) %>%
+  dplyr::summarise(
+     num_peaks = length(peak_number)
+  ) %>%
+  ungroup() %>%
+  # Add modulation rate
+  inner_join(
+    peaks_hab_df %>%
+      # Calculate duration per call
+      inner_join(
+        freq_mod_df %>%
+          dplyr::mutate(
+            duration = end - start
+          ) %>%
+          dplyr::select(sound.files, duration),
+        by = "sound.files"
+      ) %>%
+      # Calculate modulation rate per call
+      group_by(habitat, sound.files, duration) %>%
+      dplyr::summarise(
+        num_peaks = length(peak_number)
+      ) %>%
+      ungroup() %>%
+      dplyr::mutate(
+        modulation_rate = (num_peaks/duration) # units for rate of change = peaks/second
+      ) %>%
+      dplyr::select(sound.files, modulation_rate),
+    by = "sound.files"
+  ) %>%
+  # Add peak-trough slope
+  inner_join(
+    peaks_hab_df %>%
+    # Drop peaks that were not matched to troughs
+    filter(!is.na(peak_trgh_slope)) %>%
+    # Get max peak-trough range per call
+    group_by(habitat, sound.files) %>%
+    dplyr::summarise(
+      max_peak_trgh_slope = min(peak_trgh_slope)
+    ) %>%
+    ungroup() %>%
+      dplyr::select(sound.files, max_peak_trgh_slope),
+    by = "sound.files"
+  ) 
+
+# 24 calls
+FM_hab_df
+
+```
+
+### Figure 4
+
+A raincloud plot for the distributions of the 3 frequency modulation measurements per range-habitat.
+```{r echo = TRUE, eval = FALSE}
+
+FM_hab_df_tmp <- FM_hab_df %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^habitat$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  dplyr::mutate(
+    measurement_nm = measurement,
+    # Add new line symbols to all measurement names
+    measurement_nm = recode(
+      measurement_nm,
+      `num_peaks` = "Number of\n peaks",
+      `max_peak_trgh_slope` = "Peak - trough\n slope",
+      `modulation_rate` = "Modulation\n rate",
+    ),
+    measurement_nm = factor(measurement_nm),
+  ) 
+
+FM_hab_df_tmp
+
+topms <- c("num_peaks", "modulation_rate", "max_peak_trgh_slope")
+cols <- scales::alpha(c("navy", "dodgerblue", "orange"), 0.85)
+
+# Make a list of plots in order of effect sizes
+# Doing this to customize y-axes of each plot, which isn't possible for plots in a single row with facetscales
+gg_list <- list()
+
+# i <- 1
+invisible(pblapply(1:length(topms), function(i){
+  
+  tmp_df <- FM_hab_df_tmp %>%
+    filter(measurement == topms[i]) %>%
+    dplyr::mutate(
+      measurement_nm = as.character(measurement_nm),
+      measurement_nm = factor(measurement_nm, levels = unique(measurement_nm)),
+      habitat = recode(
+        habitat,
+        `Native agro-interface` = "Native\n agro-interface",
+        `Native urban` = "Native\n urban",
+        `Invasive urban` = "Invasive\n urban"
+      )
+    ) 
+  
+  # Get ymin and ymax values, add a buffer of 2 evenly space values before and after 
+  ymin <- min(tmp_df$values)
+  ymax <- max(tmp_df$values)
+  
+  # Get the difference between max and min, use this as a buffer on the y-axis scale
+  buf <- (ymax - ymin)/5
+  
+  # If on the first plot, add the y-axis label
+  if(i == 1){
+    yal <- "Values"
+  } else{
+    yal <- ""
+  }
+  
+  # Initialize plot margins (top, right, bottom, left)
+  tm <- 1
+  rm <- 0
+  bm <- 1
+  lm <- 0
+  
+  # If on the first plot, make the left margin larger
+  if(i == 1){
+    lm <- 0.5
+  # If on last plot, make the right margin larger
+  } else if(i == length(topms)){
+    rm <- 0.5
+  }
+  
+  # Raincloud plot: Kernel smoothed with boxplot
+  gg <- ggplot(tmp_df, aes(x = habitat, y = values, fill = habitat, color = habitat)) + 
+    geom_flat_violin(position = position_nudge(x = 0.1, y = 0), adjust = 1, size = 0.25)+
+    geom_point(position = position_jitter(width = 0.05), size = 2, stroke = 0.5, alpha = 0.45) +
+    geom_boxplot(aes(x = as.numeric(habitat) - 0.22, y = values), outlier.shape = NA, alpha = 0.55, width = 0.2, colour = "black", size = 0.25) +
+    facet_wrap(~ measurement_nm) +
+    scale_fill_manual(values = cols) +
+    scale_color_manual(values = cols) +
+    guides(fill = FALSE, color = FALSE) +
+    theme_bw() +
+    xlab("") + ylab(yal) +
+    scale_y_continuous(limits = round(c(ymin - buf, ymax + buf), 2), breaks = round(seq(ymin - buf, (ymax + buf), (ymax - ymin)/5), 2)) +
+    theme(
+      axis.title = element_text(size = 11),
+      axis.text.y = element_text(size = 11),
+      # , angle = 35, hjust = 1
+      axis.text.x = element_text(size = 9),
+      strip.text = element_text(size = 12, margin = margin(0.5, 1, 0.5, 1, "lines")),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(size = 0.25),
+      plot.margin = unit(c(tm, rm, bm, lm), "lines")
+    )
+  
+  # gg
+  
+  # Return the given plot
+  gg_list[[i]] <<- gg
+  
+}))
+
+# Get the legend
+cols <- scales::alpha(c("navy", "dodgerblue", "orange"), 0.85)
+
+gg_leg <- gtable::gtable_filter(ggplot_gtable(ggplot_build(
+  FM_hab_df_tmp %>%
+    ggplot(aes(x = habitat, y = values, color = habitat)) +
+    geom_errorbar(aes(ymin = values, ymax = values), size = 2, width = 0.25) +
+    scale_color_manual(values = cols) +
+    guides(color = guide_legend(title = "", override.aes = list(size = 2))) +
+    theme_bw() +
+    theme(
+      legend.text = element_text(size = 12),
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(-10, -10, -10, -10),
+      legend.key.width = unit(2, "lines")
+    )
+)), "guide-box")
+
+dev.off()
+
+# Arrange plots into a single image file
+# Animal Behavior double column figure = 190 mm or 7.48 in
+jpeg(file.path(gpath, "Figure4_FmMeasrmntsHabitats_final.jpeg"), units = "in", width = 7.48, height = 4, res = 1000)
+
+ggarrange(
+  as.ggplot(gg_leg),
+  as.ggplot(ggarrange(
+    as.ggplot(gg_list[[1]]),
+    as.ggplot(gg_list[[2]]),
+    as.ggplot(gg_list[[3]]),
+    nrow = 1,
+    widths = rep(3, 3)
+  )),
+  nrow = 2,
+  heights = c(1, 10)
+)
+
+dev.off()
+
+```
+
+See the main text of the associated publication for this figure.
+
+Calculated median and interquartile range per acoustic measurement per habitat.
+```{r echo = TRUE, eval = TRUE}
+  
+FM_hab_df_ss <- FM_hab_df %>%
+  dplyr::mutate(
+    habitat = factor(habitat, levels = c("Native agro-interface", "Native urban", "Invasive urban"))
+  ) %>%
+  # Convert to long format
+  pivot_longer(
+    cols = names(.)[-grep("^habitat$|^sound.files$", names(.))],
+    names_to = "measurement",
+    values_to = "values"
+  ) %>%
+  group_by(measurement, habitat) %>%
+  dplyr::summarise(
+    median = round(median(values), 2),
+    IQR = round(IQR(values), 2)
+  ) %>%
+  # Convert to long format again
+  pivot_longer(
+    cols = c(median, IQR),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  # Make wider to split out the mean and se columns
+  pivot_wider(
+    names_from = c(statistic, habitat),
+    values_from = values
+  ) %>%
+  ungroup()
+
+glimpse(FM_hab_df_ss)
+
+# FM_hab_df_ss %>%
+  # View()
+
+```
+
+Calculate Cliff's delta as the effect size of range and habitat per acoustic measurement. Filtered by native urban and invasive urban calls to assess effect of range given the same habitat, then by native agro-interface and native urban to assess the effect of habitat.
+```{r echo = TRUE, eval = FALSE}
+
+var_nms <- names(FM_hab_df)[-grep("^habitat$|^sound.files$", names(FM_hab_df))]
+var_nms
+
+# Got a t-test error when running i = 1 for num_peaks
+eff_resh_df <- rbindlist(pblapply(2:length(var_nms), function(i){
+  
+  # cat(paste("i = ", i, sep = ""))
+  
+  # Calculate effect of range
+  tmp_df <- FM_hab_df %>%
+    dplyr::select(habitat, var_nms[i])
+  
+  nat <- tmp_df %>%
+    filter(habitat == "Native urban") %>%
+    pull(var_nms[i])
+  
+  inv <- tmp_df %>%
+    filter(habitat == "Invasive urban") %>%
+    pull(var_nms[i])
+  
+  # Get Cliff's delta for independent groups (all values of y compared to all values of x)
+  # orddom package v 3.1
+  cliff_delta <- dmes(nat, inv)$dc
+  
+  # Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+  # Using 10000 bootstrap iterations
+  ci_res <- dmes.boot(nat, inv, theta.es = "dc", ci.meth = "BCA", B = 10000)
+  ci_res
+  
+  lower_95_CI <- ci_res$theta.bci.lo
+  upper_95_CI <- ci_res$theta.bci.up
+  
+  range_df <- data.frame(
+    measurement = var_nms[i],
+    type = "Range",
+    cliff_delta = cliff_delta,
+    lower_95_CI = lower_95_CI,
+    upper_95_CI = upper_95_CI
+  )
+  
+  # Calculate effect of habitat
+  nat_agr <- tmp_df %>%
+    filter(habitat == "Native agro-interface") %>%
+    pull(var_nms[i])
+  
+  nat_urb <- tmp_df %>%
+    filter(habitat == "Native urban") %>%
+    pull(var_nms[i])
+  
+  # Get Cliff's delta for independent groups (all values of y compared to all values of x)
+  # orddom package v 3.1
+  cliff_delta <- dmes(nat_agr, nat_urb)$dc
+  
+  # Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+  # Using 10000 bootstrap iterations
+  ci_res <- dmes.boot(nat_agr, nat_urb, theta.es = "dc", ci.meth = "BCA", B = 10000)
+  ci_res
+  
+  lower_95_CI <- ci_res$theta.bci.lo
+  upper_95_CI <- ci_res$theta.bci.up
+  
+  habitat_df <- data.frame(
+    measurement = var_nms[i],
+    type = "Habitat",
+    cliff_delta = cliff_delta,
+    lower_95_CI = lower_95_CI,
+    upper_95_CI = upper_95_CI
+  )
+
+  return(
+    range_df %>%
+           bind_rows(habitat_df)
+  )
+  
+}))
+
+eff_resh_df
+
+# Ran this code for num_peaks outside of the loop, which avoided the t.test error 
+# Calculate effect of range
+tmp_df <- FM_hab_df %>%
+  dplyr::select(habitat, "num_peaks")
+
+nat <- tmp_df %>%
+  filter(habitat == "Native urban") %>%
+  pull(num_peaks)
+
+inv <- tmp_df %>%
+  filter(habitat == "Invasive urban") %>%
+  pull(num_peaks)
+
+# Get Cliff's delta for independent groups (all values of y compared to all values of x)
+# orddom package v 3.1
+cliff_delta <- dmes(nat, inv)$dc
+
+# Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+# Using 10000 bootstrap iterations
+ci_res <- dmes.boot(nat, inv, theta.es = "dc", ci.meth = "BCA", B = 10000)
+ci_res
+
+lower_95_CI <- ci_res$theta.bci.lo
+upper_95_CI <- ci_res$theta.bci.up
+
+range_df <- data.frame(
+  measurement = "num_peaks",
+  type = "Range",
+  cliff_delta = cliff_delta,
+  lower_95_CI = lower_95_CI,
+  upper_95_CI = upper_95_CI
+)
+
+# Calculate effect of habitat
+nat_agr <- tmp_df %>%
+  filter(habitat == "Native agro-interface") %>%
+  pull(num_peaks)
+
+nat_urb <- tmp_df %>%
+  filter(habitat == "Native urban") %>%
+  pull(num_peaks)
+
+# Get Cliff's delta for independent groups (all values of y compared to all values of x)
+# orddom package v 3.1
+cliff_delta <- dmes(nat_agr, nat_urb)$dc
+
+# Using the bias-corrected and accelerated bootstrap method, found to be robust to non-normality and heterogeneous variance in a simulation study by Hess & Kromey 2004
+# Using 10000 bootstrap iterations
+ci_res <- dmes.boot(nat_agr, nat_urb, theta.es = "dc", ci.meth = "BCA", B = 10000)
+ci_res
+
+lower_95_CI <- ci_res$theta.bci.lo
+upper_95_CI <- ci_res$theta.bci.up
+
+habitat_df <- data.frame(
+  measurement = "num_peaks",
+  type = "Habitat",
+  cliff_delta = cliff_delta,
+  lower_95_CI = lower_95_CI,
+  upper_95_CI = upper_95_CI
+)
+
+eff_resh_df2 <- range_df %>% 
+  bind_rows(habitat_df)
+
+eff_resh_df3 <- eff_resh_df %>%
+  bind_rows(eff_resh_df2)
+
+eff_resh_df3 
+
+write.csv(eff_resh_df3, file.path(path, "cliffs_delta_bootstrappedCIs_habitatFm.csv"), row.names = FALSE)
+
+```
+
+Effect sizes ordered by absolute magnitude. 
+```{r echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+eff_resh_df <- read.csv(file.path(path, "cliffs_delta_bootstrappedCIs_habitatFm.csv"))
+glimpse(eff_resh_df)
+
+# Make a table for appendix, in order of largest absolute effect size per comparison
+eff_resh <- eff_resh_df %>%
+  dplyr::mutate(
+    effect_size = round(cliff_delta, 2),
+    lower_95_CI = round(lower_95_CI, 2),
+    upper_95_CI = round(upper_95_CI, 2),
+    `95_CI` = paste("(", lower_95_CI, ", ", upper_95_CI, ")", sep = "")
+  ) %>%
+  arrange(type, desc(abs(effect_size))) %>%
+  ungroup() %>%
+  dplyr::select(type, measurement, effect_size, `95_CI`)
+
+eff_resh %>%
+  kable(align = c(rep("c", 4)))
+
+```
+
+
+# References
+    
+    1. Araya-Salas, M., Smith-Vidaurre, G., and M. Webster. 2017. Assessing the effect of sound file compression and background noise on measures of acoustic signal structure. Bioacoustics 28(1), 57-73.
+    
+    2. Hess, M.R., & Kromrey, J.D. 2004. Robust confidence intervals for effect sizes: A comparative study of Cohen’s d and Cliff’s delta under non-normality and heterogeneous variances. Paper presented at the annual meeting of the American Educational Research Association, San Diego, 12–16 April 2004.
+    
+The session info printed here represents the environment used for the final RMarkdown knitting. The software and package versions employed for main results are reported in the appendix of the associated article.
+```{r echo = TRUE, eval = TRUE}
+
+sessionInfo()
+
+```

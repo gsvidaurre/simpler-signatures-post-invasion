@@ -1,0 +1,952 @@
+---
+title: <center style="font-size:30px;font-style:normal;color:black;">Additional Materials 01 :</center>
+subtitle: <center style="font-size:30px;font-style:normal;color:#0E0E7D;">Summary Statistics, Nest Variables, and Social Group Sizes</center>
+ &nbsp;
+author: |
+  <center style="font-style:normal;">
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://smith-vidaurre.com/">Grace Smith-Vidaurre</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1,2,3,4*</span></sup>, 
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Valeria Perez-Marrufo</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup>,
+  <a style="font-size:22px;color:#337ab7;text-decoration: underline;"href="http://wrightbehaviorlab.org">Timothy F. Wright</a><sup><span style="font-size:12px;color:black;text-decoration:none!important;">1</span></sup></center>
+  &nbsp;
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">1</span></sup>Department of Biology, New Mexico State University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">2</span></sup>Laboratory of Neurogenetics of Language, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">3</span></sup>Field Research Center, Rockefeller University</center>
+  <center style="font-size:18px;font-style:normal;color:black;"><sup><span style="font-size:12px;color:black;">4</span></sup>Department of Biological Sciences, University of Cincinnati</center>
+  <br />
+  <center style="font-size:18px;"><sup style="font-size:12px;">*</sup>Corresponding author (gsvidaurre@gmail.com)</center>
+  &nbsp;
+date: <center style=font-size:22px;font-style:normal;>`r format(Sys.time(), '%d %B %Y')`</center>
+  <br />
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+---
+
+<style type="text/css">
+
+a:hover {
+  color: #23527c !important;
+}
+
+h1.title {
+  font-size: 32px;
+  color: black;
+  font-weight: normal;
+}
+
+h1 {
+   color: black;
+   font-size: 26px;
+   font-weight: normal;
+}
+
+h2 {
+   color: black;
+   font-size: 24px;
+   font-weight: bold;
+}
+
+h3 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+h4 {
+   color: black;
+   font-size: 20px;
+   font-weight: normal;
+}
+
+body{ /* Normal */
+      font-size: 18px;
+  }
+code.r{ /* Code block */
+    font-size: 18px;
+}
+</style>
+
+```{r setup, eval = TRUE, echo = FALSE}
+
+knitr::opts_knit$set(root.dir = "/home/gsvidaurre/Desktop/GitHub_repos/vocal-learning-invasion")
+
+```
+
+Invasive range calls were taken through a pre-processing workflow similar to previously published native range calls<a href='#References'><sup>[1]</sup></a>. Previously published invasive range calls for 2004 were provided by Susannah Buhrman-Deever<a href='#References'><sup>[2]</sup></a>, and were pre-processed in the same way. See the appendix of the associated article in Animal Behavior for details on pre-processing steps. The package `warbleR`<a href='#References'><sup>[3]</sup></a> was used for pre-processing, making extended selection tables and spectrograms, and calculating acoustic measurements for downstream analyses. Some function names and other code in this script (and subsequent scripts) may need to be updated in order to reproduce results with more recent versions of the packages used. Here, we generated summary statistics of the combined native and invasive range datasets, then analyzed differences in nest and social group size estimates between ranges.
+
+Install packages needed to run analyses in this script and the subsequent 3 scripts. Packages MASS, parallel, and grid are provided with the base R installation. 
+```{r, eval = FALSE, echo = TRUE}
+
+# Linux users may need to run the following terminal commands to install devtools and CRAN packages: 
+# sudo apt-get install libcurl4-openssl-dev 
+# sudo apt-get install libssl-dev
+# sudo apt-get install libxml2-dev
+# sudo apt install libgeos-dev
+# sudo apt install libgdal-dev
+# sudo apt install libudunits2-dev
+
+# Install packages from CRAN
+# Note that until orddom is back on CRAN, you may have to download an earlier version of the package from source
+X <- c("ggplot2", "pbapply", "data.table", "tidyverse", "scales", "egg", "ggplotify", "grid", "rgdal", "ranger", "caret", "rgeos", "Rmisc", "Rraven", "lubridate", "knitr", "coin", "cowplot", "dplyr", "corrplot", "MLmetrics", "e1071", "gbm", "pdp", "pracma", "gridExtra", "facetscales", "grDevices", "gtable", "rstatix", "orddom", "IDmeasurer", "utils")
+
+is_installed <- function(p) is.element(p, installed.packages()[,1])
+
+lapply(1:length(X), function(x){
+  if(!is_installed(X[x])){
+    install.packages(X[x], repos = "http://lib.stat.cmu.edu/R/CRAN")
+  }
+})
+
+# Install the most recent version of the warbleR package from GitHub
+# Install devtools if not installed
+if (!"devtools" %in% installed.packages()[,"Package"]) install.packages("devtools")
+
+# Linux users may have to install fftw:
+# sudo apt-get install libfftw3-dev libfftw3-doc
+# as well as cmake for bioacoustics to be installed:
+# sudo apt-get install cmake
+library(devtools)
+install_github("maRce10/warbleR")
+install_github("zmjones/edarf", subdir = "pkg")
+
+# facetscales has a bug when making boxplots, we did not use this package to make boxplots
+install_github("zeehio/facetscales")
+
+# To install a previous version of orddom from source:
+
+# May need to install package psych from source depending on R version
+pkgurl <- "https://cran.r-project.org/src/contrib/Archive/psych/psych_2.0.12.tar.gz"
+install.packages(pkgurl, repos = NULL, type="source")
+
+pkgurl <- "https://cran.r-project.org/src/contrib/Archive/orddom/orddom_3.1.tar.gz"
+install.packages(pkgurl, repos = NULL, type="source")
+
+```
+
+Load packages and external functions.
+```{r load libraries, echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE}
+
+rm(list = ls())
+
+X <- c("warbleR", "pbapply", "Rraven", "tidyverse", "ggplot2", "data.table", "lubridate", "knitr", "coin", "rgdal", "rgeos", "cowplot", "egg", "ggplotify")
+
+invisible(lapply(X, library, character.only = TRUE))
+
+path <- "/media/gsvidaurre/MYIOPSITTA/R/VocalLearning_PostInvasion/Data"
+gpath <- "/home/gsvidaurre/Desktop/MANUSCRIPTS/SimplerSignatures_PostInvasion/FIGURES"
+
+seed <- 401
+
+cores <- parallel::detectCores() - 2
+
+# Call R code to make raincloud plots, downloaded from https://github.com/RainCloudPlots/RainCloudPlots
+# Loading these scripts will install packages if these are not already on your machine
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/R_rainclouds.R")
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/summarySE.R")
+source("/home/gsvidaurre/Desktop/Software/RainCloudPlots-master/tutorial_R/simulateData.R")
+
+```
+
+Read in the extended selection table that contains metadata and wave objects for pre-processed native and invasive range calls. Throughout this script, you can reproduce analyses by reading in the file "nat_inv_indiv_site_seltbl.csv", which is a selection table that contains the metadata employed here.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est <- readRDS(file.path(path, "nat_inv_indiv_site_EST.RDS"))
+glimpse(nat_inv_est)
+
+# Write out selection table for sharing data (not in extended format, just a .csv)
+# nat_inv_est %>%
+#   as_tibble %>%
+#   write.csv(., file.path(path, "nat_inv_indiv_site_seltbl.csv"), row.names = FALSE)
+
+```
+
+# Repeatedly sampled individuals
+
+Total number of repeatedly sampled individual calls between ranges and by range.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  dplyr::count() %>%
+  kable(align = rep("c", ncol(.)))
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range) %>%
+  dplyr::count() %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of known repeatedly sampled individuals across ranges. 
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range) %>%
+  dplyr::summarise(count = n_distinct(Bird_ID)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of sites at which we sampled known repeatedly sampled individuals across ranges. 
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range) %>%
+  dplyr::summarise(count = n_distinct(site)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of calls per known repeatedly sampled individual across ranges, and recording dates. Used for a table in the appendix.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range, Bird_ID, lat, lon, site, dept_state) %>%
+  dplyr::count() %>%
+  arrange(range, site) %>%
+  inner_join(
+    nat_inv_est %>%
+      as_tibble() %>%
+      filter(social_scale == "Individual") %>%
+      group_by(range, Bird_ID) %>%
+      distinct(date),
+    by = c("range", "Bird_ID")
+  ) %>%
+  ungroup() %>%
+  dplyr::mutate(
+    lat = round(lat, 3),
+    lon = round(lon, 3)
+  ) %>%
+  dplyr::select(Bird_ID, site, dept_state, lat, lon, n, date) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Median and range of the number of calls per known repeatedly sampled individual across ranges.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range, Bird_ID) %>%
+  dplyr::summarise(num_calls = length(Bird_ID)) %>%
+  dplyr::summarise(
+    median_calls = round(median(num_calls), 2),
+    range_calls = paste(round(range(num_calls), 2), collapse = " - ")
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Median and range of signal to noise ratio (SNR) across ranges.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Individual") %>%
+  group_by(range) %>%
+  filter(!is.na(SNR)) %>%
+  dplyr::summarise(
+    median_SNR = round(median(SNR), 2),
+    range_SNR = paste(round(range(SNR), 2), collapse = " - ")
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+# Call dataset of broader geographic resolution
+
+As described in the main text of the associated publication, this larger dataset contained one call per unique individual (most birds recorded for this dataset were unmarked). Get the total number of sites sampled across ranges for this dataset.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  dplyr::summarise(count = n_distinct(site_year)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of site-years across ranges (e.g. unique sites). 
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range) %>%
+  dplyr::summarise(count = n_distinct(site_year)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of sites across ranges and years. 
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range, year) %>%
+  dplyr::summarise(count = n_distinct(site_year)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Total number of calls per site-year across ranges.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range) %>%
+  dplyr::summarise(num_calls = length(range)) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Median and range of the number of calls per site-year.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range, site_year) %>%
+  dplyr::summarise(num_calls = length(site_year)) %>%
+  dplyr::summarise(
+    median_calls = round(median(num_calls), 2),
+    range_calls = paste(round(range(num_calls), 2), collapse = " - ")
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Median and range of SNR of site-years across ranges, by range.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range) %>%
+  filter(!is.na(SNR)) %>%
+  dplyr::summarise(
+    median_SNR = round(median(SNR), 2),
+    range_SNR = paste(round(range(SNR), 2), collapse = " - ")
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Number of calls, sampling dates and geographic coordinates per site-year across ranges. Used for appendix tables as well.
+```{r echo = TRUE, eval = TRUE}
+
+nat_inv_est %>%
+  as_tibble() %>%
+  filter(social_scale == "Site") %>%
+  group_by(range, site, year, dept_state, invasive_city, lat, lon) %>%
+  distinct(date) %>%
+  arrange(range, site, dept_state, year) %>%
+  ungroup() %>%
+  inner_join(
+    nat_inv_est %>%
+      as_tibble() %>%
+      filter(social_scale == "Site") %>%
+      group_by(range, site, date, lat, lon) %>%
+      dplyr::summarise(
+        n_calls = length(sound.files)
+      ),
+  by = c("range", "site", "date", "lat", "lon")
+  ) %>%
+  dplyr::mutate(
+    lat = round(lat, 3),
+    lon = round(lon, 3)
+  ) %>%
+  dplyr::select(range, site, dept_state, invasive_city, lat, lon, n_calls, date) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+# Nest estimates
+
+Read in nest estimates to get nest density estimates at recording sites per range. Used for a table in the appendix.
+```{r echo = TRUE, eval = TRUE}
+
+nests <- read.csv(file.path(path, "NestEstimates.csv")) %>%
+  dplyr::select(c(Range, Year, Department_orCityState, Site_Code, Estimated_Nests))
+
+```
+
+Get median and interquartile range of number of estimated nests per range.
+```{r, echo = TRUE, eval = TRUE}
+
+nests %>%
+  group_by(Range) %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive"))
+  ) %>%
+  dplyr::summarise(
+    median_nests = round(median(Estimated_Nests), 2),
+    IQR_nests = round(IQR(Estimated_Nests), 2)
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Were nest number estimates significantly different between ranges? First check normality of nest data using histograms and a Shapiro-Wilks test.
+```{r, echo = TRUE, eval = TRUE}
+
+hist(nests %>%
+  pull(Estimated_Nests))
+
+shapiro.test(nests %>%
+  pull(Estimated_Nests))
+
+```
+
+The nest data was skewed, so I asked whether the population distributions were identical using a Mann-Whitney-Wilcoxon test (Wilcoxon rank sum test). This test does not assume the data are normally distributed, but does assume the samples are independent. In order to meet the assumption that samples are independent of each other, I dropped some invasive range site-years for which we had nest estimates in more than one year.
+```{r, echo = TRUE, eval = TRUE}
+
+# 4 invasive range sites had counts for 2 years
+n2drop <- nests %>%
+  group_by(Site_Code) %>%
+  dplyr::summarise(n = n()) %>%
+  filter(n > 1) %>%
+  pull(Site_Code) %>%
+  as.character()
+
+n2drop
+
+# Drop the 2011 estimates for these sites
+nests2 <- nests %>%
+  dplyr::mutate(site_year = paste(Site_Code, Year, sep = "-")) %>%
+  filter(!site_year %in% paste(n2drop, "2011", sep = "-")) %>%
+  droplevels() %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive"))
+  )
+nrow(nests) - nrow(nests2)
+
+# Checking, looks good
+# nests2 %>%
+#   group_by(Site_Code) %>%
+#   dplyr::summarise(n = n()) %>%
+#   pull(n) %>%
+#   unique()
+
+# Still non-normal after samples above were dropped
+shapiro.test(nests2 %>%
+  pull(Estimated_Nests))
+
+```
+
+The median and interquartile range of these filtered data per range were the same as the full dataset.
+```{r echo = TRUE, eval = TRUE}
+
+nests2 %>%
+  group_by(Range) %>%
+  dplyr::summarise(
+    median_nests = round(median(Estimated_Nests), 2),
+    IQR_nests = round(IQR(Estimated_Nests), 2)
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Mann-Whitney test with independent nest estimates. Computed exact p-values and 95% CIs to avoid using normal approximations. stats::wilcox.test uses the normal approximation for data with ties, as is the case here. Used coin::wilcox_test instead, which handles data with ties  and can either get the conditional null distribution by Monte Carlo resampling, or the exact distribution. The confidence intervals are for the difference in location reported below.
+```{r, echo = TRUE, eval = TRUE}
+
+levels(nests2$Range)
+
+mw_res <- coin::wilcox_test(Estimated_Nests ~ Range, data = nests2, conf.int = TRUE, conf.level = 0.95, ties.method = "mid-ranks", alternative = "two.sided", distribution = "exact")
+
+mw_res
+
+```
+
+# Nest densities
+
+Read in shapefiles for nesting sites obtained by tracing site areas on Google My Maps.
+```{r echo = TRUE, eval = TRUE}
+
+# Read in polygons, no z-dimension saved but that doesn't matter here
+nest_site_polys <- readOGR(file.path(path, "URY_US_Polygons.kml"), "URY_US_Polygons")
+# str(nest_site_polys)
+length(nest_site_polys)
+
+# Repoject to EPSG 3857, a projected coordinate system used by Google Maps that has units in meters
+nest_site_polys <- spTransform(nest_site_polys, CRSobj = CRS("+init=epsg:3857"))
+
+# Looks good
+proj4string(nest_site_polys)
+bbox(nest_site_polys)
+
+# Get area in meters squared per polyon
+ns_areas <- gArea(nest_site_polys, byid = TRUE)
+ns_areas 
+
+# Convert to km squared (1 meter squared = 1e-6 km squared)
+# ns_km2 <- ns_areas/1e6
+# ns_km2
+
+# Convert to hectares (1 square meter = 0.0001 hectares)
+ns_hect <- ns_areas/1e4
+
+# Check out nest site names
+# nest_site_polys$Name
+
+# Convert to character and replace the new line symbol in PLVE
+# Doesn't disappear after correction on Google My Maps
+nest_site_polys$Name <- as.character(nest_site_polys$Name)
+nest_site_polys$Name
+
+# Add nest areas to the data frame with nest numbers
+# Calculate nest density at each site (total nests / total area)
+nests2 <- nests %>%
+  dplyr::mutate(
+    Site_Year = paste(Site_Code, Year, sep = "_")
+  ) %>%
+  left_join(
+    data.frame(
+      Site_Year = nest_site_polys$Name,
+      Nest_Site_Area = ns_hect
+    ) %>%
+    # Use the same nest site polygon for MART 2011 and 2019
+    bind_rows(
+      data.frame(
+        Site_Year = "MART_2011",
+        Nest_Site_Area = ns_hect[grep("MART", nest_site_polys$Name)]
+      )
+    ),
+    by = "Site_Year"
+  ) %>%
+  dplyr::mutate(
+    Nest_Density = Estimated_Nests/Nest_Site_Area
+  ) 
+
+nests2 %>%
+  dplyr::mutate(
+    Nest_Site_Area = round(Nest_Site_Area, 2),
+    Nest_Density = round(Nest_Density, 2)
+  ) %>%
+  dplyr::select(c(Range, Year, Department_orCityState, Site_Code, Estimated_Nests, Nest_Site_Area, Nest_Density)) %>%
+  kable(align = rep("c", ncol(.)))
+
+# Summary statistics
+nests2 %>%
+  dplyr::mutate(
+    Nest_Site_Area = round(Nest_Site_Area, 2),
+    Nest_Density = round(Nest_Density, 2)
+  ) %>%
+  dplyr::select(c(Range, Estimated_Nests, Nest_Site_Area, Nest_Density)) %>%
+  pivot_longer(
+    cols = c("Estimated_Nests", "Nest_Site_Area", "Nest_Density"),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive")),
+    statistic = factor(statistic, levels = c("Estimated_Nests", "Nest_Site_Area", "Nest_Density"))
+  ) %>%
+  group_by(Range, statistic) %>%
+  dplyr::summarise(
+    median_nests = round(median(values, na.rm = TRUE), 2),
+    IQR_nests = round(IQR(values, na.rm = TRUE), 2)
+  ) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Statistical tests of the difference in nest site area and density per range.
+```{r, echo = TRUE, eval = TRUE}
+
+# Only 2 invasive range sites (INTR, MART) had counts for 2 years, as expected
+n2drop <- nests2 %>%
+  # Remove sites for which area was not obtained
+  filter(!is.na(Nest_Site_Area)) %>%
+  group_by(Site_Code) %>%
+  dplyr::summarise(n = n()) %>%
+  filter(n > 1) %>%
+  pull(Site_Code) %>%
+  as.character()
+
+n2drop
+
+# Drop the 2011 estimates for these sites
+nests3 <- nests2 %>%
+  # Remove sites for which area was not obtained
+  filter(!is.na(Nest_Site_Area)) %>%
+  dplyr::mutate(site_year = paste(Site_Code, Year, sep = "-")) %>%
+  filter(!site_year %in% paste(n2drop, "2011", sep = "-")) %>%
+  droplevels() %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive"))
+  )
+nrow(nests2) - nrow(nests3)
+
+# Checking, looks good
+# nests3 %>%
+#   group_by(Site_Code) %>%
+#   dplyr::summarise(n = n()) %>%
+#   pull(n) %>%
+#   unique()
+
+```
+
+16 native and 8 invasive range sites remain for statistical tests of differences in nest site area and density. Sample sizes were not matched between ranges.
+```{r, echo = TRUE, eval = TRUE}
+
+nests3 %>%
+  group_by(Range) %>%
+  dplyr::summarise(n = n())
+
+```
+
+Check normality of nest site areas using histograms and Shapiro-Wilks test.
+```{r, echo = TRUE, eval = TRUE}
+
+hist(nests3 %>%
+  pull(Nest_Site_Area))
+
+shapiro.test(nests3 %>%
+  pull(Nest_Site_Area))
+
+```
+
+Repeated for nest densities.
+```{r, echo = TRUE, eval = TRUE}
+
+hist(nests3 %>%
+  pull(Nest_Density))
+
+shapiro.test(nests3 %>%
+  pull(Nest_Density))
+
+```
+
+Both nest variables were skewed (not normally distributed). As for total nests above, I asked whether the population distributions per nest variable were identical using a Mann-Whitney-Wilcoxon test (Wilcoxon rank sum test) as above.
+```{r, echo = TRUE, eval = TRUE}
+
+levels(nests3$Range)
+
+mw_nestArea_res <- coin::wilcox_test(Nest_Site_Area ~ Range, data = nests3, conf.int = TRUE, conf.level = 0.95, ties.method = "mid-ranks", alternative = "two.sided", distribution = "exact")
+
+mw_nestArea_res
+
+```
+
+```{r, echo = TRUE, eval = TRUE}
+
+mw_nestDensity_res <- coin::wilcox_test(Nest_Density ~ Range, data = nests3, conf.int = TRUE, conf.level = 0.95, ties.method = "mid-ranks", alternative = "two.sided", distribution = "exact")
+
+mw_nestDensity_res
+
+```
+
+# Social group sizes
+
+We obtained the largest social group sizes observed during fieldwork in the native and invasive ranges. Some native range fieldwork observations were made during trapping for an independent study of genetic variation. All group sizes greater than or equal to 100 were set as estimates of 100 birds. This was an underestimate in most cases and was therefore more conservative. Group sizes were observed during staging, foraging, and flying by in each range.
+```{r, echo = TRUE, eval = TRUE}
+
+sgs <- read.csv(file.path(path, "SocialGroupSize_Observations.csv"))
+# glimpse(sgs)
+
+# unique(sgs$Estimated_Flock_Size)
+unique(sgs$Behavioral_Context)
+unique(sgs$Observer)
+
+# Set all estimates of 100 birds or more to a cap of 100
+sgs2 <- sgs %>%
+  dplyr::mutate(
+    Estimated_Flock_Size = gsub("Several hundred|Over 100", "100", Estimated_Flock_Size), 
+    Estimated_Flock_Size = gsub("Over |More than |About ", "", Estimated_Flock_Size),
+    Estimated_Flock_Size = as.numeric(Estimated_Flock_Size),
+    Range = factor(Range, levels = c("Native", "Invasive"))
+  )
+
+glimpse(sgs2)
+
+```
+
+```{r, echo = TRUE, eval = TRUE}
+
+sgs2 %>%
+  dplyr::select(Range, Country, Dept_State, Estimated_Flock_Size, Behavioral_Context, Date, Site_Code) %>%
+  kable(align = rep("c", ncol(.)))
+
+```
+
+Calculate median and interquartile range of the largest social groups estimated in each range.
+```{r, echo = TRUE, eval = TRUE}
+
+sgs2 %>%
+  group_by(Range) %>%
+  dplyr::summarise(
+    median_vals = median(Estimated_Flock_Size),
+    IQR_vals = IQR(Estimated_Flock_Size)
+  )
+
+```
+
+Were estimated flock sizes equivalent between ranges? Checked normality of social group size data from our fieldwork in each range.
+```{r, echo = TRUE, eval = TRUE}
+
+hist(sgs2 %>%
+  pull(Estimated_Flock_Size))
+
+shapiro.test(sgs2 %>%
+  pull(Estimated_Flock_Size))
+
+```
+
+The social group size data was not normally distributed, and some flock sizes were obtained at the same sites in the same or different years. I retained one unique flock size estimate per site, then asked whether the population distributions were identical using a Mann-Whitney-Wilcoxon test (Wilcoxon rank sum test).
+```{r, echo = TRUE, eval = FALSE}
+
+# 4 observations should remain per range
+unique(as.character(sgs2$Site_Code))
+
+# Randomly select one observation per site
+set.seed(seed)
+sgs3 <- sgs2 %>%
+  dplyr::select(-c(Notebook, Notebook_page, Notes), Site_Name) %>%
+  group_by(Site_Code) %>%
+  nest() %>%
+  ungroup() %>%
+  # Randomly sample 1 observation (if just 1, then this single observation will be returned) 
+  dplyr::mutate(
+    rsfs = purrr::map2(data, 1, sample_n, replace = FALSE)
+  ) %>%
+  dplyr::select(-data) %>%
+  unnest(rsfs)
+
+glimpse(sgs3)
+
+# Results I compute here on my local machine are different to those computed when knitting RMarkdown output. I think it has to do with setting the seed because the randomly sampled data points by RMarkdown are also different. I wrote out a new .csv with the randomly sampled social group size data to account for this
+write.csv(sgs3, file.path(path, "SocialGroupSizes_randomSampling.csv"), row.names = FALSE)
+
+```
+
+```{r, echo = TRUE, eval = TRUE}
+
+sgs3 <- read.csv(file.path(path, "SocialGroupSizes_randomSampling.csv")) %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive"))
+  )
+
+# Print the data frame
+sgs3 %>%
+  dplyr::select(Range, Country, Dept_State, Estimated_Flock_Size, Behavioral_Context, Date, Site_Code) %>%
+  kable(align = rep("c", ncol(.)))
+
+# Perform the Mann-Whitney test with this reduced dataset to meet non-independence assumption
+levels(sgs3$Range)
+
+mw_flockSize_res <- coin::wilcox_test(Estimated_Flock_Size ~ Range, data = sgs3, conf.int = TRUE, conf.level = 0.95, ties.method = "mid-ranks", alternative = "two.sided", distribution = "exact")
+
+mw_flockSize_res
+
+```
+
+The distributions of estimated flock sizes per range were not identical. Native range estimated flock sizes were significantly larger. Note that the 95% CI could not be computed, likely due to the small sample size per range.
+
+## Figure 1
+
+Made raincloud plots and saved these to an image file for Figure 1. Added asterisks for variables that were significantly different between ranges.
+```{r echo = TRUE, eval = FALSE}
+
+# Combine total nests estimated, areas of nest sites, nest densities, estimated flock sizes per range
+social_sumstats <- nests2 %>%
+  dplyr::select(Range, Year, Site_Code, Estimated_Nests, Nest_Site_Area, Nest_Density) %>%
+  full_join(
+    sgs2 %>%
+      dplyr::select(Range, Year, Site_Code, Estimated_Flock_Size),
+    by = c("Range", "Site_Code", "Year")
+  ) %>%
+  pivot_longer(
+    cols = c("Estimated_Nests", "Nest_Site_Area", "Nest_Density", "Estimated_Flock_Size"),
+    names_to = "statistic",
+    values_to = "values"
+  ) %>%
+  dplyr::mutate(
+    Range = factor(Range, levels = c("Native", "Invasive")),
+    # Rename summary statistics for plotting
+    statistic = recode(
+      statistic,
+      `Estimated_Nests` = "Total nests",
+      `Nest_Site_Area` = "Nest site area\n (hectares)",
+      `Nest_Density` = "Nest density\n (nests/hectare)",
+      `Estimated_Flock_Size` = "Maximum\n flock sizes" 
+    ),
+    statistic = factor(statistic, levels = c("Total nests", "Nest site area\n (hectares)", "Nest density\n (nests/hectare)", "Maximum\n flock sizes"))
+  ) 
+    
+social_sumstats  
+
+
+cols <- scales::alpha(c("navy", "orange"), 0.65)
+
+# for superscript: `Nest_Site_Area` = "Nest~density~(nests/km^{2})
+# with labeller = label_parsed inside facet_wrap
+
+topms <- levels(social_sumstats$statistic)
+topms
+
+# Make a list of plots
+# Doing this to customize y-axes of each plot, which isn't possible for plots in a single row with facetscales
+gg_list <- list()
+
+# i <- 3
+invisible(pblapply(1:length(topms), function(i){
+  
+  tmp_df <- social_sumstats %>%
+    # Drop NAs
+    filter(!is.na(values)) %>%
+    filter(statistic == topms[i]) %>%
+    dplyr::mutate(
+      statistic = as.character(statistic),
+      statistic = factor(statistic, levels = unique(statistic))
+    ) 
+  
+  # Get ymin and ymax values, add a buffer of 2 evenly spaced values before and after 
+  ymin <- min(tmp_df$values)
+  ymax <- max(tmp_df$values)
+  
+  # If the maximum value is over or equal to 90, set the max o 100 and use 25 as breaks for y-axis. If less than 90, use 10 as the breaks. Use this rule to set buffers too
+  if(ymax >= 90 & ymax <= 110){
+    ymax <- 100
+    y_brks <- 25
+    buf <- 10
+  } else if(ymax > 110){
+    y_brks <- 25
+    buf <- 10
+  } else if(ymax < 90){
+    y_brks <- 10
+    buf <- 10
+  }
+  
+  # If on the first plot, add the y-axis label
+  if(i == 1){
+    yal <- "Values"
+  } else{
+    yal <- ""
+  }
+  
+  # Initialize plot margins (top, right, bottom, left)
+  tm <- 0 # -0.5
+  rm <- 0
+  bm <- 1
+  lm <- 0
+  
+  # If on the first plot, make the left margin larger
+  if(i == 1){
+    lm <- 0.5
+  # If on last plot, make the right margin larger
+  } else if(i == length(topms)){
+    rm <- 0.5
+  }
+  
+  # Raincloud plot: Kernel smoothed with boxplot
+  gg <- ggplot(tmp_df, aes(x = Range, y = values, fill = Range, color = Range)) + 
+    geom_flat_violin(position = position_nudge(x = 0.1, y = 0), adjust = 1, size = 0.25)+
+    geom_point(position = position_jitter(width = 0.05), size = 1, stroke = 0.5) +
+    geom_boxplot(aes(x = as.numeric(Range) - 0.22, y = values), outlier.shape = NA, alpha = 0.55, width = 0.2, colour = "black", size = 0.25) +
+    facet_wrap(~ statistic) +
+    scale_fill_manual(values = cols) +
+    scale_color_manual(values = cols) +
+    guides(fill = FALSE, color = FALSE) +
+    theme_bw() +
+    xlab("") + ylab(yal) +
+    scale_y_continuous(limits = round(c(0, ymax + buf)), breaks = round(seq(0, (ymax + buf), y_brks))) +
+    theme(
+      axis.title = element_text(size = 14),
+      axis.text.y = element_text(size = 11),
+      axis.text.x = element_text(size = 11),
+      strip.text = element_text(size = 12, margin = margin(0.5, 1, 0.5, 1, "lines")),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(size = 0.25),
+      plot.margin = unit(c(tm, rm, bm, lm), "lines")
+    )
+  
+  # If on total nests or social group size estimates, add an asterisk to denote statistical significance
+  
+  if(any(grepl("Total|flock", topms[i]))){
+    
+    gg <- gg +
+      geom_text(aes(label = "*", x = 1.5, y = ymax - (ymax/10)), size = 10, color = "black")
+  }
+  
+  gg
+  
+  # Return the given plot
+  gg_list[[i]] <<- gg
+  
+}))
+
+gg_list
+
+cols <- scales::alpha(c("navy", "orange"), 0.75)
+
+# Make a legend
+gg_leg <- gtable::gtable_filter(ggplot_gtable(ggplot_build(
+  social_sumstats %>%
+    ggplot(aes(x = Range, y = values)) +
+    geom_errorbar(aes(ymin = values, ymax = values, color = Range), size = 2, width = 0.25) +
+    scale_color_manual(values = cols) +
+    guides(color = guide_legend(title = "", override.aes = list(size = 2))) +
+    theme_bw() +
+    theme(
+      legend.text = element_text(size = 12),
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(-10, -10, -10, -10),
+      legend.key.width = unit(3, "lines")
+    )
+)), "guide-box")
+
+dev.off()
+
+# Arrange the legend and plots into a single image file
+# Animal Behavior double column figure = 190 mm or 7.48 in
+jpeg(file.path(gpath, "Figure01_NestFlockSizeEstimates_final.jpeg"), units = "in", width = 7.48, height = 4, res = 1000)
+
+ggarrange(
+  as.ggplot(gg_leg),
+  as.ggplot(ggarrange(
+    as.ggplot(gg_list[[1]]),
+    as.ggplot(gg_list[[2]]),
+    as.ggplot(gg_list[[3]]),
+    as.ggplot(gg_list[[4]]),
+    nrow = 1
+  )),
+  nrow = 2,
+  heights = c(1, 9)
+)
+
+dev.off()
+
+```
+
+# References
+
+    1. Smith-Vidaurre, G., Araya-Salas, M., and T.F. Wright. 2020. Individual signatures outweigh social group identity in contact calls of a communally nesting parrot. Behavioral Ecology 31(2), 448-458.
+    
+    2. Buhrman-Deever, S.C., Rappaport, A.R. and J.W. Bradbury. 2007. Geographic variation in contact calls of feral North American populations of the monk parakeet. The Condor 109(2), 389-398.
+    
+    3. Araya‐Salas, M., and G. Smith‐Vidaurre. 2017. warbleR: An R package to streamline analysis of animal acoustic signals. Methods in Ecology and Evolution 8(2), 184-191.
+    
+The session info printed here represents the environment used for the final RMarkdown knitting. The software and package versions employed for main results are reported in the appendix of the associated article in Animal Behavior.
+```{r echo = TRUE, eval = TRUE}
+
+sessionInfo()
+
+```
