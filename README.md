@@ -24,7 +24,7 @@ Code:
 
 	- Individual identity content in contact calls between ranges was evaluated with Beecher's statistic
 
-Please cite this code if you find it is useful for your own work: [![DOI](https://zenodo.org/badge/292416543.svg)](https://zenodo.org/badge/latestdoi/292416543)
+Please cite this code if you find it useful for your own work: [![DOI](https://zenodo.org/badge/292416543.svg)](https://zenodo.org/badge/latestdoi/292416543)
 
 Contact the corresponding author of the associated publication for more information about analyses and data:
 
